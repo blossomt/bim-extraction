@@ -55,6 +55,7 @@ LAYERS = [
     ("Door cuts applied to host walls", "door_cuts", _style("#00e5ff", "#008b9c", opacity=0.6)),
     ("Stairs", "stairs", _style("#9467bd", opacity=0.4)),
     ("Lift parts (label-only; orange = landing-door access candidate, dashed = misplaced)", "lifts", _lift_style),
+    ("Centreline (pygeoops)", "centrelines", lambda _f: {"color": "#0055ff", "weight": 2, "opacity": 0.9}),
 ]
 
 TOOLTIP_FIELDS = ["category", "name", "global_id", "entity", "storey", "status", "info"]

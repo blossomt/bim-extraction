@@ -4,6 +4,7 @@ Phase 1: model inspection, storey inventory and storey selection.
 Phase 2: semantic element extraction for the selected storey.
 Phase 3: 2D geometry extraction and a minimal local-coordinate map.
 Phase 4: floor footprint (wall envelope) and naive / opening-aware walkable polygons.
+Phase 5: pygeoops centreline per walkable component.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from pathlib import Path
 import config
 import geometry_processing
 import ifc_reader
+import network_generation
 import visualisation
 
 
@@ -160,13 +162,29 @@ def print_floor_plan(summary: dict) -> list[str]:
     lines = [f"Footprint ({summary['footprint_source']}): {fp['area_m2']} m2"]
     for v, s in summary["walkable"].items():
         print(f"  Walkable {v:<14} {s['area_m2']:>9} m2, {s['components']:>4} components, {s['holes']:>3} holes, "
-              f"lost {s['area_lost_pct']}%, slivers removed {s['slivers_removed']} ({s['sliver_area_m2']} m2), repaired={s['repaired']}")
+              f"lost {s['area_lost_pct']}%, slivers removed {s['slivers_removed']} ({s['sliver_area_m2']} m2), "
+              f"thin removed {s['thin_removed']} ({s['thin_area_m2']} m2), repaired={s['repaired']}")
         lines.append(f"Walkable {v}: {s['area_m2']} m2, {s['components']} components")
     print(f"  Doorways still blocked (opening-aware): {len(summary['doorways_still_blocked'])}")
     sc = summary["spaces_comparison"]
     print(f"  IfcSpace area {sc['spaces_area_m2']} m2; outside footprint {sc['spaces_area_outside_footprint_m2']} m2; "
           f"footprint not covered by spaces {sc['footprint_area_not_in_spaces_m2']} m2")
     return lines
+
+
+def print_centrelines(summary: dict) -> list[str]:
+    print(f"\nCentreline (pygeoops {summary['pygeoops_version']}, {summary['variant']} walkable, "
+          f"params {summary['parameters']}) in {summary['runtime_s']}s")
+    print(f"  Walkable components {summary['walkable_components']}: {summary['component_status']}")
+    print(f"  Centreline components {summary['centreline_components']}, total length {summary['total_length_m']} m, "
+          f"outside walkable {summary['length_outside_walkable_m']} m")
+    print(f"  Doorways crossed by centreline: {summary['doorways_crossed']}; not crossed: {len(summary['doorways_not_crossed'])}")
+    for c in summary["failed_or_empty"]:
+        print(f"  {c['status'].upper()}: {c['component_id']} area {c['area_m2']} m2 {c.get('error', '')}")
+    for c in summary["fragmented"]:
+        print(f"  Fragmented: {c['component_id']} area {c['area_m2']} m2 -> {c['centreline_groups']} groups")
+    return [f"Centreline: {summary['centreline_components']} components, {summary['total_length_m']} m; "
+            f"doorways crossed {summary['doorways_crossed']}"]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -214,12 +232,20 @@ def main(argv: list[str] | None = None) -> int:
             plan = geometry_processing.build_floor_plan(geom["frames"], extracted, config)
             panel_lines = print_floor_plan(plan["summary"]) + panel_lines
             (args.output_dir / "floor_plan_summary.json").write_text(json.dumps(plan["summary"], indent=2, default=str))
+            network = network_generation.generate_centrelines(
+                plan["frames"][f"walkable_{config.CENTRELINE_VARIANT}"], plan["frames"]["door_cuts"], config
+            )
+            panel_lines = print_centrelines(network["summary"]) + panel_lines
+            (args.output_dir / "centreline_summary.json").write_text(
+                json.dumps({**network["summary"], "per_component": network["per_component"]}, indent=2, default=str)
+            )
             map_path = visualisation.build_floor_map(
-                {**geom["frames"], **plan["frames"]}, selected.name, geom["summary"]["bounds_xy_m"], panel_lines,
+                {**geom["frames"], **plan["frames"], "centrelines": network["centrelines"]},
+                selected.name, geom["summary"]["bounds_xy_m"], panel_lines,
                 args.output_dir / "floor_plan.html",
             )
             print(f"Map written to {map_path}")
-            print("\nPhases 1-4 only: centreline and connectors are not implemented yet.")
+            print("\nPhases 1-5 only: door/lift connectors are not implemented yet.")
 
     out_path.write_text(json.dumps(inv, indent=2, default=str))
     print(f"\nInventory written to {out_path}  ({time.time() - t0:.1f}s total)")

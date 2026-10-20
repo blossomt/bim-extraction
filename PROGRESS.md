@@ -1,8 +1,15 @@
 # PROGRESS
 
-**Current phase:** Phase 4 complete — awaiting review before Phase 5.
+**Current phase:** Phase 5 complete — awaiting review before Phase 6.
 
 ## Completed
+
+### Phase 5 — Centreline with pygeoops (2026-10-21)
+- [ifc_indoor_network/network_generation.py](ifc_indoor_network/network_generation.py): one `pygeoops.centerline` call per opening-aware walkable component; connected line groups get IDs `<component>.C<k>`; per-component status `ok` / `fragmented` / `empty` / `failed` (exceptions reported, no substitute algorithm); doorway crossing check (centreline must extend ≥ 0.5 m beyond the door cut); length outside walkable polygon.
+- Parameters fixed after benchmarking on Level 1: `densify_distance=0.25`, `min_branch_length=0.5`, `simplifytolerance=0.05`. pygeoops' automatic (width-scaled) defaults pruned doorway branches (72/120 crossed).
+- Fixes found while validating: (1) curtain-wall footprints now use only parts spanning walking height — transoms above sliding doors had sealed the vestibule (status `no_parts_at_walking_height` for 2 curtain walls entirely above); (2) walkable components with mean width < 0.3 m removed and logged (`thin_removed`) — wall-gap strips; (3) doorway-crossing check ignores centrelines confined to the cut.
+- Level 1: 51 components → 52 centreline components, 3,263 m, ~2 s, 0 outside walkable; 118/120 doorways crossed (the 2 not crossed are the known blocked external doors); 1 fragmented component (O000: a 0.38 m wide dead-end strip, 0.23 m from the main network). Level 2: 56/57 crossed; Level 4: 78/86 crossed (incomplete envelope).
+- Map layer `Centreline (pygeoops)`; `output/centreline_summary.json`.
 
 ### Phase 4 — Floor footprint and walkable polygons (2026-10-21)
 - `geometry_processing.build_floor_plan()`: envelope footprint (decision 6), naive and opening-aware walkable polygons, door cuts applied only to each door's explicit host (opening host via `IfcRelVoidsElement`, or parent curtain wall via `IfcRelAggregates`), only elements spanning walking height used as obstacles, `make_valid` + sliver removal (< 0.5 m²) logged, area-loss %, walkable components with IDs (`O000`… opening-aware, `N000`… naive, by descending area), doorways still blocked after cutting (with blocking element IDs), IfcSpace comparison.
@@ -35,7 +42,7 @@
 - [ifc_indoor_network/main.py](ifc_indoor_network/main.py): CLI `--ifc --storey --storey-id --list-storeys --output-dir`; writes `output/inventory.json`. Exit code 2 on bad path / failed selection.
 
 ## Tests
-- `cd ifc_indoor_network && ../.venv/bin/python -m pytest -q` → **28 passed** (~16 s; includes sample-file integration tests, skipped if file absent).
+- `cd ifc_indoor_network && ../.venv/bin/python -m pytest -q` → **32 passed** (~17 s; includes sample-file integration tests, skipped if file absent).
 - Manual: `main.py` (Level 1) exit 0; `--storey "Level 9"` exit 2 listing storeys; `--storey "level 7a"` selects Level 7A (not Level 7); bad `--ifc` path exit 2.
 
 ## Known issues / data-quality findings
@@ -56,9 +63,10 @@
 - 2 Level 1 external doors (`1IjDNnD1b6tenKMZR0qFDY`, `1IjDNnD1b6tenKMZR0q8OV`) remain blocked: their opening voids one wall but an overlapping exterior brick wall (`...187264/187265`) is not voided. Reported, not fixed.
 - Upper storeys (e.g. Level 4) have incomplete envelopes because multi-storey exterior walls are contained only in their base storey → fragmented footprint. Level 1 (and 2) are the reliable targets.
 - Remaining opening-aware components on Level 1 (59 besides the main one) are rooms/shafts/closets without a door cut reaching the main area — to be examined with centreline/connectors.
+- Centreline is a raw medial axis: diagonal "X" branches in rectangular rooms and saw-tooth spurs along façade mullions/columns. Geometrically valid but noisy; graph simplification is out of scope for now.
 
 ## Decisions
 - Reviewed after Phase 1: see "Decisions" in [PLAN.md](PLAN.md) (landing-door proxies as flagged lift access; curtain walls + columns as obstacles; wall section at walking height; git commit per phase).
 
 ## Next steps
-1. Phase 5: `network_generation.py` — `pygeoops.centerline` per opening-aware walkable component (stable IDs, failures/empties reported), overlay on map.
+1. Phase 6: door and lift connectors — door access point → nearest centreline point, distance vs max snap distance, status; landing-door proxies as label-only lift access (misplaced ones excluded, decision 5).

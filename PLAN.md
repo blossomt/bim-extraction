@@ -67,7 +67,7 @@ Each phase ends with runnable code, tests passing, and an inspected output. Do n
 - **Validation**: areas before/after, component counts, doorways visibly open in opening-aware version, no aggressive buffering.
 - **Done when**: both polygons generated for Level 1, layered output inspected, and a non-space storey (e.g. Level 4) reports "footprint unavailable" cleanly.
 
-### Phase 5 — Centreline with pygeoops
+### Phase 5 — Centreline with pygeoops ✅
 - **Depends on**: Phase 4.
 - **Deliverables**: `network_generation.py` using `pygeoops.centerline(geometry, densify_distance, min_branch_length, simplify_tolerance, extend)` (signature verified in 0.6.0) per polygon component; stable component IDs; failures/empties reported with diagnostics.
 - **Validation**: runtime acceptable, components count, visual overlay.

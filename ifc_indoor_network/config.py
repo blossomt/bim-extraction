@@ -60,7 +60,18 @@ DOOR_WIDTH_CHECK_TOLERANCE_M = 0.15
 ENVELOPE_CLOSING_M = 0.02
 # Walkable components smaller than this are removed as slivers (logged).
 MIN_COMPONENT_AREA_M2 = 0.5
+# Walkable components whose mean width (2 * area / perimeter) is below this are removed (wall-gap strips; logged).
+MIN_COMPONENT_MEAN_WIDTH_M = 0.3
 # Doors aggregated in a curtain wall (no IfcOpeningElement) cut their own footprint from that curtain wall.
 CUT_CURTAIN_WALL_DOORS = True
 # Doorway reported as still blocked if more than this fraction of its cut area remains covered by obstacles.
 DOORWAY_BLOCKED_FRACTION = 0.5
+
+# pygeoops.centerline parameters (metres). pygeoops' automatic (negative) values scale with average polygon
+# width and pruned doorway branches on Level 1 (72/120 doorways crossed); these fixed values crossed 118/118 open ones.
+CENTRELINE_VARIANT = "opening_aware"
+CENTRELINE_DENSIFY_M = 0.25
+CENTRELINE_MIN_BRANCH_M = 0.5
+CENTRELINE_SIMPLIFY_M = 0.05
+# A doorway counts as crossed only if the crossing centreline group extends this far beyond the door cut.
+DOORWAY_CROSSING_MIN_EXTENT_M = 0.5

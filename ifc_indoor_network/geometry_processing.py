@@ -136,17 +136,20 @@ def extract_geometry(model: ifcopenshell.file, extracted: dict, storey_elevation
         for rec in recs:
             gid = rec["global_id"]
             part_meshes = [meshes[p.GlobalId] for p in parts_of.get(gid, []) if p.GlobalId in meshes]
+            # Parts above/below walking height (e.g. transoms over doors) are not walking obstacles.
+            walking_parts = [(v, f) for v, f in part_meshes if v[:, 2].min() <= walking_z <= v[:, 2].max()]
             own = meshes.get(gid)
             sources = ([own] if own is not None else []) + part_meshes
             if sources:
                 footprint = polygonal_part(shapely.union_all(
-                    [mesh_footprint(v, f, cfg.GEOMETRY_GRID_SIZE_M) for v, f in sources], grid_size=cfg.GEOMETRY_GRID_SIZE_M
+                    [mesh_footprint(v, f, cfg.GEOMETRY_GRID_SIZE_M) for v, f in ([own] if own is not None else []) + walking_parts],
+                    grid_size=cfg.GEOMETRY_GRID_SIZE_M,
                 ))
                 z = np.concatenate([v[:, 2] for v, _ in sources])
                 z_min, z_max = float(z.min()), float(z.max())
                 status = "ok" if own is not None else "ok_from_parts"
                 if footprint.is_empty:
-                    status = "empty_footprint"
+                    status = "no_parts_at_walking_height" if part_meshes and not walking_parts and own is None else "empty_footprint"
             else:
                 footprint, z_min, z_max = Polygon(), None, None
                 status = _status_for_missing(entities[gid])
@@ -166,7 +169,8 @@ def extract_geometry(model: ifcopenshell.file, extracted: dict, storey_elevation
                 "covers_walking_height": None if z_min is None else bool(z_min <= walking_z <= z_max),
                 "area_m2": round(footprint.area, 4),
                 "info": _info(category, rec) + (
-                    f"; parts_meshed={len(part_meshes)}/{len(parts_of[gid])}" if gid in parts_of else ""),
+                    f"; parts_meshed={len(part_meshes)}/{len(parts_of[gid])}; parts_at_walking_height={len(walking_parts)}"
+                    if gid in parts_of else ""),
                 "geometry": footprint,
             })
             if category == "doors" and not footprint.is_empty:
@@ -223,15 +227,22 @@ def fill_outer_rings(geom) -> Polygon | MultiPolygon:
     return polygonal_part(shapely.union_all([Polygon(p.exterior) for p in shapely.get_parts(polygonal_part(geom))]))
 
 
-def clean_polygons(geom, min_area: float) -> tuple[Polygon | MultiPolygon, dict]:
-    """make_valid if needed, keep polygonal parts, drop components below min_area. Returns geometry + log."""
+def clean_polygons(geom, min_area: float, min_mean_width: float = 0.0) -> tuple[Polygon | MultiPolygon, dict]:
+    """make_valid if needed, keep polygonal parts, drop tiny or very thin components. Returns geometry + log."""
     repaired = not geom.is_valid
     if repaired:
         geom = shapely.make_valid(geom)
     parts = list(shapely.get_parts(polygonal_part(geom)))
-    keep = [p for p in parts if p.area >= min_area]
-    dropped = [p for p in parts if p.area < min_area]
-    log = {"repaired": repaired, "slivers_removed": len(dropped), "sliver_area_m2": round(sum(p.area for p in dropped), 4)}
+    small = [p for p in parts if p.area < min_area]
+    thin = [p for p in parts if p.area >= min_area and 2 * p.area / p.length < min_mean_width]
+    keep = [p for p in parts if p.area >= min_area and 2 * p.area / p.length >= min_mean_width]
+    log = {
+        "repaired": repaired,
+        "slivers_removed": len(small),
+        "sliver_area_m2": round(sum(p.area for p in small), 4),
+        "thin_removed": len(thin),
+        "thin_area_m2": round(sum(p.area for p in thin), 4),
+    }
     return (shapely.union_all(keep) if keep else Polygon()), log
 
 
@@ -310,7 +321,7 @@ def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
     walkable, logs = {}, {}
     for variant, obst in (("naive", naive_obstacles), ("opening_aware", aware_obstacles)):
         raw = footprint.difference(obst, grid_size=grid) if not footprint.is_empty else Polygon()
-        walkable[variant], logs[variant] = clean_polygons(raw, cfg.MIN_COMPONENT_AREA_M2)
+        walkable[variant], logs[variant] = clean_polygons(raw, cfg.MIN_COMPONENT_AREA_M2, cfg.MIN_COMPONENT_MEAN_WIDTH_M)
 
     # Doorways that stay blocked in the opening-aware result (e.g. another, overlapping element not voided by the opening).
     blocked = []

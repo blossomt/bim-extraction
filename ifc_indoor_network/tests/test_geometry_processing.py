@@ -117,3 +117,10 @@ def test_sample_level1_geometry():
     assert plan["footprint"]["components"] == 1 and plan["footprint"]["area_m2"] > 6000
     assert plan["door_cuts"] == {"door_filled_opening": 114, "door_in_curtain_wall": 6}
     assert plan["walkable"]["opening_aware"]["components"] < plan["walkable"]["naive"]["components"]
+
+    import network_generation
+    p = gp.build_floor_plan(geom["frames"], extracted, config)
+    net = network_generation.generate_centrelines(p["frames"]["walkable_opening_aware"], p["frames"]["door_cuts"], config)
+    blocked = {b["door_global_id"] for b in p["summary"]["doorways_still_blocked"]}
+    assert set(net["summary"]["doorways_not_crossed"]) == blocked
+    assert net["summary"]["failed_or_empty"] == []
