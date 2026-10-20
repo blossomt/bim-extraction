@@ -2,6 +2,7 @@
 
 Phase 1: model inspection, storey inventory and storey selection.
 Phase 2: semantic element extraction for the selected storey.
+Phase 3: 2D geometry extraction and a minimal local-coordinate map.
 """
 
 from __future__ import annotations
@@ -13,7 +14,9 @@ import time
 from pathlib import Path
 
 import config
+import geometry_processing
 import ifc_reader
+import visualisation
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -128,6 +131,23 @@ def print_extraction(extracted: dict, inv: dict) -> list[str]:
     return mismatches
 
 
+def print_geometry(summary: dict) -> list[str]:
+    """Print the geometry summary; return short lines for the map panel."""
+    print(f"\nGeometry ({summary['coordinate_frame']}); walking height Z = {_fmt(summary['walking_height_z_m'])} m")
+    lines = []
+    for cat, counts in summary["status_by_category"].items():
+        if counts:
+            print(f"  {cat:<14} {counts}")
+            lines.append(f"{cat}: {counts}")
+    print(f"  Not covering walking height: {summary['not_covering_walking_height']}")
+    print(f"  Geometry repairs (make_valid): {len(summary['geometry_repairs'])}")
+    dw = summary["door_width_check"]
+    print(f"  Door axis - OverallWidth: {dw['compared']} compared, median {_fmt(dw['median_axis_minus_overall_width_m'], 3)} m, "
+          f"offsets {dw['offset_counts_m']}, {len(dw['outliers'])} outliers vs median")
+    print(f"  XY bounds (m): {[round(b, 2) for b in summary['bounds_xy_m'] or []]}")
+    return lines
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     t0 = time.time()
@@ -164,7 +184,17 @@ def main(argv: list[str] | None = None) -> int:
             elements_path = args.output_dir / "elements.json"
             elements_path.write_text(json.dumps(extracted, indent=2, default=str))
             print(f"Elements written to {elements_path}")
-            print("\nPhases 1-2 only: geometry extraction and network generation are not implemented yet.")
+
+            t_geom = time.time()
+            geom = geometry_processing.extract_geometry(model, extracted, selected.elevation_m or 0.0, config)
+            print(f"\nGeometry extracted in {time.time() - t_geom:.1f}s")
+            panel_lines = print_geometry(geom["summary"])
+            (args.output_dir / "geometry_summary.json").write_text(json.dumps(geom["summary"], indent=2, default=str))
+            map_path = visualisation.build_floor_map(
+                geom["frames"], selected.name, geom["summary"]["bounds_xy_m"], panel_lines, args.output_dir / "floor_plan.html"
+            )
+            print(f"Map written to {map_path}")
+            print("\nPhases 1-3 only: walkable polygon and network generation are not implemented yet.")
 
     out_path.write_text(json.dumps(inv, indent=2, default=str))
     print(f"\nInventory written to {out_path}  ({time.time() - t0:.1f}s total)")

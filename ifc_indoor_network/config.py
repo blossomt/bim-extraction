@@ -1,6 +1,7 @@
 """User-editable defaults. All values can be overridden from the command line."""
 
 from pathlib import Path
+import os
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -45,3 +46,11 @@ EXTRA_PSETS = {
 
 # Elements whose placement Z lies outside [elevation - tol, next storey elevation - tol) are flagged (report only).
 PLACEMENT_Z_TOLERANCE_M = 0.5
+
+# Height above the storey elevation used to decide whether walls/openings matter for walking.
+WALKING_HEIGHT_M = 1.0
+# Snapping grid for 2D unions (metres). Small enough not to close doorways.
+GEOMETRY_GRID_SIZE_M = 0.001
+GEOMETRY_THREADS = os.cpu_count() or 1
+# Door footprint axis minus IFC OverallWidth: deviations from the median offset above this are reported.
+DOOR_WIDTH_CHECK_TOLERANCE_M = 0.15

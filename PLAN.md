@@ -29,12 +29,19 @@ Default target storey: **Level 1** (95 spaces, 120 doors, 38 lift label candidat
 
 1. **Lift access**: use name-based `Elevator_LandingDoor*` proxies as lift access points, always flagged `identification = label_only`. Other elevator-labelled objects (car doors, cabins, columns) are context only, never access points.
 2. **Extra obstacles**: subtract `IfcCurtainWall` and `IfcColumn` (configurable, separate layers). Railings/furnishings/proxies are not obstacles.
-3. **Wall 2D method**: opening-aware version = horizontal section of wall geometry at a configurable walking height (storey elevation + 1.0 m), only door-filled openings may open walls; naive version = full XY footprint projection. Validate in Phase 3.
+3. **Wall 2D method** (revised in Phase 3 on evidence): a horizontal section at walking height would open 58 of 66 Level 1 window openings (sills at 0.71 m) and 48 unfilled openings, violating the "never window openings" rule. Instead: walls are meshed **solid** (`disable-opening-subtractions`); naive version = full solid footprints; opening-aware version = solid footprints minus footprints of **door-filled openings that span walking height** (storey elevation + 1.0 m).
 4. **Version control**: git repository; commit at the end of each phase. Large IFC data and generated outputs are git-ignored.
 
-## Open question (raised after Phase 2)
+## Decision (reviewed after Phase 2)
 
-5. **Misplaced landing doors**: 7 of Level 1's 16 `Elevator_LandingDoor*` proxies are placed at Z ≈ 6.0 m (Level 2 height) although contained in Level 1. Proposal for Phase 6: keep them listed and flagged, but do **not** connect them to the Level 1 network (status `excluded_placement_inconsistent`). This excludes; it never reassigns.
+5. **Misplaced landing doors**: 7 of Level 1's 16 `Elevator_LandingDoor*` proxies are placed at Z ≈ 6.0 m (Level 2 height) although contained in Level 1. Decision: report and flag them, but do **not** connect them to the Level 1 network (status `excluded_placement_inconsistent`). This excludes; it never reassigns.
+
+## Open question (raised after Phase 3)
+
+6. **Floor footprint source**: on Level 1, `IfcSpace` covers ~2,730 m² (96 components) while the area enclosed by walls/curtain walls is ~4,650 m². The main circulation (central corridor) is **not modelled as a space**. A spaces-only footprint (SPEC §4 step 1) will leave rooms disconnected. Options:
+   - A. Spaces only (strict SPEC): report that circulation is missing; network will be fragmented.
+   - B. Envelope footprint: fill the outer rings of wall + curtain-wall footprints, flagged `footprint_source = derived_from_wall_envelope` (derived geometry, not IFC-labelled), keep spaces as a separate layer.
+   - C. Both, selectable via `--footprint {spaces,envelope}`, default spaces; diagnostics compare them. (Recommended.)
 
 ## Phases
 
@@ -51,7 +58,7 @@ Each phase ends with runnable code, tests passing, and an inspected output. Do n
 - **Validation**: counts match Phase 1 per-storey counts; doors without relationships listed; tests on synthetic model.
 - **Done when**: every record has GlobalId, name, entity, predefined/object type, storey, membership path and extraction status; nothing is assigned to the storey without an explicit relationship.
 
-### Phase 3 — Geometry extraction → 2D Shapely (+ minimal viewer)
+### Phase 3 — Geometry extraction → 2D Shapely (+ minimal viewer) ✅
 - **Depends on**: Phase 2.
 - **Deliverables**: `geometry_processing.py`: IfcOpenShell iterator (world coords) for selected GlobalIds; per element: 3D bounds/z-range, 2D footprint (XY projection) and, for walls, a horizontal section at walking height; door representative point/line; failures recorded per element. GeoDataFrames per category in a local CRS (metres). Minimal `visualisation.py` Folium map in a synthetic `CRS.Simple` frame to inspect outputs.
 - **Validation**: unit sanity (door widths ≈ 0.8–1.8 m, storey Z matches), valid geometry counts, visual check that walls/spaces align; compare section-vs-projection for walls with door openings.
@@ -59,7 +66,7 @@ Each phase ends with runnable code, tests passing, and an inspected output. Do n
 
 ### Phase 4 — Floor footprint and walkable polygons
 - **Depends on**: Phase 3.
-- **Deliverables**: footprint source selection (spaces → slabs (non-ROOF only) → unavailable); naive walkable = footprint − full wall footprints − configured obstacles; opening-aware walkable = footprint − (walls minus door-filled openings / walls sectioned at walking height). Repair (`make_valid`), sliver removal with configurable tolerance, area-loss logging.
+- **Deliverables**: footprint source selection (see open question 6; spaces → slabs (non-ROOF only) → unavailable); naive walkable = footprint − solid wall footprints − configured obstacles; opening-aware walkable = footprint − (solid walls − door-filled opening footprints spanning walking height). Repair (`make_valid`), sliver removal with configurable tolerance, area-loss logging.
 - **Validation**: areas before/after, component counts, doorways visibly open in opening-aware version, no aggressive buffering.
 - **Done when**: both polygons generated for Level 1, layered output inspected, and a non-space storey (e.g. Level 4) reports "footprint unavailable" cleanly.
 

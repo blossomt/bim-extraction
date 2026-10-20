@@ -1,8 +1,15 @@
 # PROGRESS
 
-**Current phase:** Phase 2 complete — awaiting review before Phase 3.
+**Current phase:** Phase 3 complete — awaiting review before Phase 4 (open question 6 in PLAN.md).
 
 ## Completed
+
+### Phase 3 — Geometry extraction → 2D (2026-10-21)
+- [ifc_indoor_network/geometry_processing.py](ifc_indoor_network/geometry_processing.py): `ifcopenshell.geom.iterator` (world coords, metres, opening subtraction disabled, multi-threaded) for all Phase 2 records; XY footprint = union of projected non-degenerate triangles (1 mm grid); z-range and `covers_walking_height`; curtain-wall footprints from aggregated parts; door representative point (footprint centroid) and axis (long side of min. rotated rectangle); status per element (`ok`, `ok_from_parts`, `no_representation`, `no_geometry_output`, `empty_footprint`); `make_valid` repairs logged.
+- [ifc_indoor_network/visualisation.py](ifc_indoor_network/visualisation.py): minimal Folium map in Leaflet `CRS.Simple` (no tiles), labelled as synthetic local coordinates; toggleable layers with tooltips; summary panel.
+- `main.py` writes `output/geometry_summary.json` and `output/floor_plan.html`. Total run ~9 s (geometry ~2.5 s).
+- Level 1: walls 278 ok, spaces 95 ok, doors 120 ok, openings 233 ok, obstacles 93 ok + 12 curtain walls from parts, stairs 7 ok + 7 parent stairs without representation (parts extracted separately), lifts 38 ok; 0 repairs. Visual check: geometry aligned and plausible.
+- Units verified: door axis − `OverallWidth` = +0.15 m for 112 doors (Revit trim 2 × 0.25 ft), 0.00 for 6 curtain-wall doors, +0.61 m for 2 doors (outliers listed). Level 4 walking height 16.85 m = 52 ft × 0.3048 + 1 m.
 
 ### Phase 2 — Semantic element extraction (2026-10-21)
 - `ifc_reader.extract_storey_elements()` returns records (no geometry) for walls, slabs, spaces, doors, openings, stairs, stair flights, obstacles (`IfcCurtainWall`, `IfcColumn`) and lifts. Every record has GlobalId, entity, name, object/predefined type, type object, storey, membership path, aggregate parent, placement Z (m) and selected psets (`Pset_*` + configured Revit sets).
@@ -21,7 +28,7 @@
 - [ifc_indoor_network/main.py](ifc_indoor_network/main.py): CLI `--ifc --storey --storey-id --list-storeys --output-dir`; writes `output/inventory.json`. Exit code 2 on bad path / failed selection.
 
 ## Tests
-- `cd ifc_indoor_network && ../.venv/bin/python -m pytest -q` → **19 passed** (~7 s; includes sample-file integration test, skipped if file absent).
+- `cd ifc_indoor_network && ../.venv/bin/python -m pytest -q` → **24 passed** (~16 s; includes sample-file integration tests, skipped if file absent).
 - Manual: `main.py` (Level 1) exit 0; `--storey "Level 9"` exit 2 listing storeys; `--storey "level 7a"` selects Level 7A (not Level 7); bad `--ifc` path exit 2.
 
 ## Known issues / data-quality findings
@@ -35,10 +42,13 @@
 - Level 1 has 53 unfilled wall openings (not door openings; will not be made passable).
 - `IfcCurtainWall` geometry lives in aggregated `IfcPlate` parts — Phase 3 must handle parts.
 - 2 "ElevatorCoordinateSystem" `IfcColumn`s on Level 1 appear both as lift label candidates (role `other`) and obstacles.
+- **Main circulation is not modelled as `IfcSpace`** on Level 1: spaces ≈ 2,730 m² vs ≈ 4,650 m² enclosed by walls/curtain walls.
+- Horizontal wall sections at 1 m would open window openings (sills 0.71 m) → wall method revised (PLAN decision 3).
+- Level 1: 13 openings, 4 obstacles and 11 lift parts do not span walking height; Level 4: 11 walls do not.
 
 ## Decisions
 - Reviewed after Phase 1: see "Decisions" in [PLAN.md](PLAN.md) (landing-door proxies as flagged lift access; curtain walls + columns as obstacles; wall section at walking height; git commit per phase).
 
 ## Next steps
-1. Review open question 5 in [PLAN.md](PLAN.md) (misplaced landing doors).
-2. Phase 3: geometry extraction to 2D Shapely + minimal Folium viewer in synthetic local coordinates.
+1. Decide open question 6 in [PLAN.md](PLAN.md) (floor footprint source).
+2. Phase 4: floor footprint and naive / opening-aware walkable polygons.
