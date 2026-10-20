@@ -300,10 +300,17 @@ def build_3d_view(meshes: dict, network: dict, connectors: dict, storey_name: st
             t.update(legendgroup="network", legendgrouptitle_text="Walking network")
 
     note = "IFC world coordinates in metres (synthetic local frame, not geographic). Legend toggles layers; drag to rotate."
-    zaxis = {"title": "Z (m)"}
+    all_verts = [it["verts"] for items in meshes.values() for it in items]
+    xy = np.vstack([v[:, :2] for v in all_verts] + [np.asarray(regions.total_bounds).reshape(2, 2)]) if all_verts else \
+        np.asarray(regions.total_bounds).reshape(2, 2)
+    (x0, y0), (x1, y1) = xy.min(axis=0), xy.max(axis=0)
+    z0 = elevation_m - 0.5
+    z1 = z_clip_m if z_clip_m is not None else max((float(v[:, 2].max()) for v in all_verts), default=elevation_m + 3)
     if z_clip_m is not None:
-        zaxis["range"] = [elevation_m - 0.5, z_clip_m]
         note += f" View clipped at Z = {z_clip_m:.1f} m (next storey); some elements extend higher."
+    # True-scale aspect from the *visible* ranges ("data" mode would use the full, unclipped Z extent).
+    span = max(x1 - x0, y1 - y0)
+    aspect = {"x": (x1 - x0) / span, "y": (y1 - y0) / span, "z": (z1 - z0) / span}
     axis_style = {"backgroundcolor": "#fafafa", "gridcolor": "#e5e5e5", "showspikes": False}
 
     fig = go.Figure([t for t in traces if t is not None])
@@ -312,11 +319,12 @@ def build_3d_view(meshes: dict, network: dict, connectors: dict, storey_name: st
         annotations=[{"text": note, "xref": "paper", "yref": "paper", "x": 0, "y": 1.0, "showarrow": False,
                       "font": {"size": 11, "color": "#555"}}],
         scene={
-            "aspectmode": "data",
-            "xaxis": {"title": "X (m)", **axis_style},
-            "yaxis": {"title": "Y (m)", **axis_style},
-            "zaxis": {**zaxis, **axis_style},
-            "camera": {"eye": {"x": 0.55, "y": -1.35, "z": 1.6}},
+            "aspectmode": "manual",
+            "aspectratio": aspect,
+            "xaxis": {"title": "X (m)", "range": [x0, x1], **axis_style},
+            "yaxis": {"title": "Y (m)", "range": [y0, y1], **axis_style},
+            "zaxis": {"title": "Z (m)", "range": [z0, z1], "nticks": 3, **axis_style},
+            "camera": {"eye": {"x": 0.45, "y": -1.1, "z": 0.75}},
         },
         legend={"itemsizing": "constant", "groupclick": "toggleitem", "bgcolor": "rgba(255,255,255,0.8)"},
         margin={"l": 0, "r": 0, "t": 50, "b": 0},
