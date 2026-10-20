@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.DS_Store
+ifc_indoor_network/output/
+data/*.ifc
