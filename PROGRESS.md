@@ -1,8 +1,15 @@
 # PROGRESS
 
-**Current phase:** Phase 3 complete — awaiting review before Phase 4 (open question 6 in PLAN.md).
+**Current phase:** Phase 4 complete — awaiting review before Phase 5.
 
 ## Completed
+
+### Phase 4 — Floor footprint and walkable polygons (2026-10-21)
+- `geometry_processing.build_floor_plan()`: envelope footprint (decision 6), naive and opening-aware walkable polygons, door cuts applied only to each door's explicit host (opening host via `IfcRelVoidsElement`, or parent curtain wall via `IfcRelAggregates`), only elements spanning walking height used as obstacles, `make_valid` + sliver removal (< 0.5 m²) logged, area-loss %, walkable components with IDs (`O000`… opening-aware, `N000`… naive, by descending area), doorways still blocked after cutting (with blocking element IDs), IfcSpace comparison.
+- Map layers added: footprint, walkable naive, walkable opening-aware, door cuts. Summary panel moved to bottom-left (was covering layer control).
+- `main.py` writes `output/floor_plan_summary.json`.
+- Level 1: footprint 6,601 m² (1 component); naive walkable 6,233 m² / 144 components; opening-aware 6,255 m² / 60 components (largest 5,500 m² = 88%); door cuts 114 openings + 6 curtain-wall doors; 0 doors without cut; 2 doorways still blocked; spaces cover only 2,729 m² of the footprint. No geometry repairs needed.
+- Level 2: 4,491 m² footprint (3 comp.), opening-aware 69 components. Level 4: footprint 1,801 m² in 9 components (incomplete envelope, see issues). Level 7A: 106 m².
 
 ### Phase 3 — Geometry extraction → 2D (2026-10-21)
 - [ifc_indoor_network/geometry_processing.py](ifc_indoor_network/geometry_processing.py): `ifcopenshell.geom.iterator` (world coords, metres, opening subtraction disabled, multi-threaded) for all Phase 2 records; XY footprint = union of projected non-degenerate triangles (1 mm grid); z-range and `covers_walking_height`; curtain-wall footprints from aggregated parts; door representative point (footprint centroid) and axis (long side of min. rotated rectangle); status per element (`ok`, `ok_from_parts`, `no_representation`, `no_geometry_output`, `empty_footprint`); `make_valid` repairs logged.
@@ -28,7 +35,7 @@
 - [ifc_indoor_network/main.py](ifc_indoor_network/main.py): CLI `--ifc --storey --storey-id --list-storeys --output-dir`; writes `output/inventory.json`. Exit code 2 on bad path / failed selection.
 
 ## Tests
-- `cd ifc_indoor_network && ../.venv/bin/python -m pytest -q` → **24 passed** (~16 s; includes sample-file integration tests, skipped if file absent).
+- `cd ifc_indoor_network && ../.venv/bin/python -m pytest -q` → **28 passed** (~16 s; includes sample-file integration tests, skipped if file absent).
 - Manual: `main.py` (Level 1) exit 0; `--storey "Level 9"` exit 2 listing storeys; `--storey "level 7a"` selects Level 7A (not Level 7); bad `--ifc` path exit 2.
 
 ## Known issues / data-quality findings
@@ -45,10 +52,13 @@
 - **Main circulation is not modelled as `IfcSpace`** on Level 1: spaces ≈ 2,730 m² vs ≈ 4,650 m² enclosed by walls/curtain walls.
 - Horizontal wall sections at 1 m would open window openings (sills 0.71 m) → wall method revised (PLAN decision 3).
 - Level 1: 13 openings, 4 obstacles and 11 lift parts do not span walking height; Level 4: 11 walls do not.
+- Envelope has sub-2 cm gaps between walls on Level 1 → 0.02 m closing needed (otherwise corridor/lobby lost).
+- 2 Level 1 external doors (`1IjDNnD1b6tenKMZR0qFDY`, `1IjDNnD1b6tenKMZR0q8OV`) remain blocked: their opening voids one wall but an overlapping exterior brick wall (`...187264/187265`) is not voided. Reported, not fixed.
+- Upper storeys (e.g. Level 4) have incomplete envelopes because multi-storey exterior walls are contained only in their base storey → fragmented footprint. Level 1 (and 2) are the reliable targets.
+- Remaining opening-aware components on Level 1 (59 besides the main one) are rooms/shafts/closets without a door cut reaching the main area — to be examined with centreline/connectors.
 
 ## Decisions
 - Reviewed after Phase 1: see "Decisions" in [PLAN.md](PLAN.md) (landing-door proxies as flagged lift access; curtain walls + columns as obstacles; wall section at walking height; git commit per phase).
 
 ## Next steps
-1. Decide open question 6 in [PLAN.md](PLAN.md) (floor footprint source).
-2. Phase 4: floor footprint and naive / opening-aware walkable polygons.
+1. Phase 5: `network_generation.py` — `pygeoops.centerline` per opening-aware walkable component (stable IDs, failures/empties reported), overlay on map.

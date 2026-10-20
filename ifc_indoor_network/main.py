@@ -3,6 +3,7 @@
 Phase 1: model inspection, storey inventory and storey selection.
 Phase 2: semantic element extraction for the selected storey.
 Phase 3: 2D geometry extraction and a minimal local-coordinate map.
+Phase 4: floor footprint (wall envelope) and naive / opening-aware walkable polygons.
 """
 
 from __future__ import annotations
@@ -148,6 +149,26 @@ def print_geometry(summary: dict) -> list[str]:
     return lines
 
 
+def print_floor_plan(summary: dict) -> list[str]:
+    fp = summary["footprint"]
+    print(f"\nFloor plan: footprint source = {summary['footprint_source']} (envelope closing {summary['envelope_closing_m']} m)")
+    if summary["footprint_unavailable_reason"]:
+        print(f"  UNAVAILABLE: {summary['footprint_unavailable_reason']}")
+    print(f"  Footprint: {fp['area_m2']} m2, {fp['components']} components")
+    print(f"  Obstacles used: {summary['obstacles_used']}; excluded (not spanning walking height): {summary['excluded_not_spanning_walking_height']}")
+    print(f"  Door cuts: {summary['door_cuts']}; doors without cut: {len(summary['doors_without_cut'])}")
+    lines = [f"Footprint ({summary['footprint_source']}): {fp['area_m2']} m2"]
+    for v, s in summary["walkable"].items():
+        print(f"  Walkable {v:<14} {s['area_m2']:>9} m2, {s['components']:>4} components, {s['holes']:>3} holes, "
+              f"lost {s['area_lost_pct']}%, slivers removed {s['slivers_removed']} ({s['sliver_area_m2']} m2), repaired={s['repaired']}")
+        lines.append(f"Walkable {v}: {s['area_m2']} m2, {s['components']} components")
+    print(f"  Doorways still blocked (opening-aware): {len(summary['doorways_still_blocked'])}")
+    sc = summary["spaces_comparison"]
+    print(f"  IfcSpace area {sc['spaces_area_m2']} m2; outside footprint {sc['spaces_area_outside_footprint_m2']} m2; "
+          f"footprint not covered by spaces {sc['footprint_area_not_in_spaces_m2']} m2")
+    return lines
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     t0 = time.time()
@@ -190,11 +211,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\nGeometry extracted in {time.time() - t_geom:.1f}s")
             panel_lines = print_geometry(geom["summary"])
             (args.output_dir / "geometry_summary.json").write_text(json.dumps(geom["summary"], indent=2, default=str))
+            plan = geometry_processing.build_floor_plan(geom["frames"], extracted, config)
+            panel_lines = print_floor_plan(plan["summary"]) + panel_lines
+            (args.output_dir / "floor_plan_summary.json").write_text(json.dumps(plan["summary"], indent=2, default=str))
             map_path = visualisation.build_floor_map(
-                geom["frames"], selected.name, geom["summary"]["bounds_xy_m"], panel_lines, args.output_dir / "floor_plan.html"
+                {**geom["frames"], **plan["frames"]}, selected.name, geom["summary"]["bounds_xy_m"], panel_lines,
+                args.output_dir / "floor_plan.html",
             )
             print(f"Map written to {map_path}")
-            print("\nPhases 1-3 only: walkable polygon and network generation are not implemented yet.")
+            print("\nPhases 1-4 only: centreline and connectors are not implemented yet.")
 
     out_path.write_text(json.dumps(inv, indent=2, default=str))
     print(f"\nInventory written to {out_path}  ({time.time() - t0:.1f}s total)")

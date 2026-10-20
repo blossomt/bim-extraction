@@ -43,17 +43,26 @@ def _lift_style(feature):
 
 
 LAYERS = [
+    ("Floor footprint (derived from wall envelope)", "footprint", _style("#dddddd", "#666666", opacity=0.4)),
     ("Slabs", "slabs", _style("#cccccc", opacity=0.3)),
     ("IfcSpace polygons", "spaces", _style("#fff3b0", "#e0a800", opacity=0.5)),
+    ("Walkable — naive (solid walls)", "walkable_naive", _style("#ff9896", "#d62728", opacity=0.4)),
+    ("Walkable — opening-aware (door cuts)", "walkable_opening_aware", _style("#98df8a", "#2ca02c", opacity=0.5)),
     ("Walls (internal grey / external black / unknown magenta)", "walls", _wall_style),
     ("Obstacles (columns, curtain walls)", "obstacles", _style("#8c564b", opacity=0.7)),
     ("Openings (door green / window blue / unfilled grey)", "openings", _opening_style),
     ("Doors", "doors", _style("#d62728", opacity=0.6)),
+    ("Door cuts applied to host walls", "door_cuts", _style("#00e5ff", "#008b9c", opacity=0.6)),
     ("Stairs", "stairs", _style("#9467bd", opacity=0.4)),
     ("Lift parts (label-only; orange = landing-door access candidate, dashed = misplaced)", "lifts", _lift_style),
 ]
 
 TOOLTIP_FIELDS = ["category", "name", "global_id", "entity", "storey", "status", "info"]
+
+
+def _tooltip_fields(gdf) -> list[str]:
+    fields = [f for f in TOOLTIP_FIELDS if f in gdf.columns]
+    return fields or [c for c in gdf.columns if c != "geometry"]
 
 
 def build_floor_map(frames: dict, storey_name: str, bounds_xy: list[float] | None, summary_lines: list[str], out_path: Path) -> Path:
@@ -66,11 +75,12 @@ def build_floor_map(frames: dict, storey_name: str, bounds_xy: list[float] | Non
         gdf = gdf[~gdf.geometry.is_empty]
         if len(gdf) == 0:
             continue
+        fields = _tooltip_fields(gdf)
         folium.GeoJson(
-            gdf[TOOLTIP_FIELDS + ["geometry"]].to_json(),
+            gdf[fields + ["geometry"]].to_json(),
             name=f"{label} ({len(gdf)})",
             style_function=style,
-            tooltip=folium.GeoJsonTooltip(fields=TOOLTIP_FIELDS),
+            tooltip=folium.GeoJsonTooltip(fields=fields),
         ).add_to(m)
 
     points = frames.get("door_points")
@@ -94,8 +104,8 @@ def build_floor_map(frames: dict, storey_name: str, bounds_xy: list[float] | Non
 
     lines_html = "".join(f"<li>{html.escape(s)}</li>" for s in summary_lines)
     panel = (
-        '<div style="position:fixed;top:10px;left:50px;z-index:9999;background:white;padding:8px 12px;'
-        'border:1px solid #888;max-width:520px;font:12px sans-serif">'
+        '<div style="position:fixed;bottom:20px;left:10px;z-index:9999;background:white;padding:8px 12px;'
+        'border:1px solid #888;max-width:420px;max-height:40vh;overflow:auto;font:12px sans-serif">'
         f"<b>Storey: {html.escape(storey_name)}</b><br><i>{SYNTHETIC_NOTE}</i><ul style='margin:4px 0;padding-left:16px'>{lines_html}</ul></div>"
     )
     m.get_root().html.add_child(folium.Element(panel))

@@ -54,3 +54,13 @@ GEOMETRY_GRID_SIZE_M = 0.001
 GEOMETRY_THREADS = os.cpu_count() or 1
 # Door footprint axis minus IFC OverallWidth: deviations from the median offset above this are reported.
 DOOR_WIDTH_CHECK_TOLERANCE_M = 0.15
+
+# Floor footprint = filled outer rings of wall + curtain-wall footprints (reviewed decision: rooms are unreliable).
+# Morphological closing used ONLY to seal sub-centimetre envelope gaps; 0.02 m is the smallest value sealing Level 1.
+ENVELOPE_CLOSING_M = 0.02
+# Walkable components smaller than this are removed as slivers (logged).
+MIN_COMPONENT_AREA_M2 = 0.5
+# Doors aggregated in a curtain wall (no IfcOpeningElement) cut their own footprint from that curtain wall.
+CUT_CURTAIN_WALL_DOORS = True
+# Doorway reported as still blocked if more than this fraction of its cut area remains covered by obstacles.
+DOORWAY_BLOCKED_FRACTION = 0.5

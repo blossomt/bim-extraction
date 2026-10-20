@@ -36,12 +36,9 @@ Default target storey: **Level 1** (95 spaces, 120 doors, 38 lift label candidat
 
 5. **Misplaced landing doors**: 7 of Level 1's 16 `Elevator_LandingDoor*` proxies are placed at Z ≈ 6.0 m (Level 2 height) although contained in Level 1. Decision: report and flag them, but do **not** connect them to the Level 1 network (status `excluded_placement_inconsistent`). This excludes; it never reassigns.
 
-## Open question (raised after Phase 3)
+## Decision (reviewed after Phase 3)
 
-6. **Floor footprint source**: on Level 1, `IfcSpace` covers ~2,730 m² (96 components) while the area enclosed by walls/curtain walls is ~4,650 m². The main circulation (central corridor) is **not modelled as a space**. A spaces-only footprint (SPEC §4 step 1) will leave rooms disconnected. Options:
-   - A. Spaces only (strict SPEC): report that circulation is missing; network will be fragmented.
-   - B. Envelope footprint: fill the outer rings of wall + curtain-wall footprints, flagged `footprint_source = derived_from_wall_envelope` (derived geometry, not IFC-labelled), keep spaces as a separate layer.
-   - C. Both, selectable via `--footprint {spaces,envelope}`, default spaces; diagnostics compare them. (Recommended.)
+6. **Floor footprint source = wall envelope (option B)**, because `IfcSpace` is not reliable enough (Level 1 main circulation is not modelled as a space: spaces ≈ 2,730 m² vs envelope ≈ 6,600 m²). Footprint = filled outer rings of the union of wall + curtain-wall footprints that span walking height, flagged `footprint_source = derived_from_wall_envelope`. A 0.02 m morphological closing seals sub-centimetre envelope gaps (without it Level 1 loses the corridor/lobby, ~2,000 m²); it is applied only to the envelope, never to the walkable polygon. Fallback: FLOOR/BASESLAB slabs, then `unavailable`. `IfcSpace` stays a separate layer and is compared in diagnostics.
 
 ## Phases
 
@@ -64,9 +61,9 @@ Each phase ends with runnable code, tests passing, and an inspected output. Do n
 - **Validation**: unit sanity (door widths ≈ 0.8–1.8 m, storey Z matches), valid geometry counts, visual check that walls/spaces align; compare section-vs-projection for walls with door openings.
 - **Done when**: Level 1 walls, spaces, doors, stairs, lift candidates render in correct relative positions with failure counts reported.
 
-### Phase 4 — Floor footprint and walkable polygons
+### Phase 4 — Floor footprint and walkable polygons ✅
 - **Depends on**: Phase 3.
-- **Deliverables**: footprint source selection (see open question 6; spaces → slabs (non-ROOF only) → unavailable); naive walkable = footprint − solid wall footprints − configured obstacles; opening-aware walkable = footprint − (solid walls − door-filled opening footprints spanning walking height). Repair (`make_valid`), sliver removal with configurable tolerance, area-loss logging.
+- **Deliverables**: footprint from wall envelope (decision 6) → FLOOR/BASESLAB slabs → unavailable; naive walkable = footprint − solid wall footprints − configured obstacles; opening-aware walkable = footprint − (each host wall/curtain wall minus its own door cuts: door-filled openings spanning walking height, or doors aggregated in curtain walls). Repair (`make_valid`), sliver removal with configurable tolerance, area-loss logging.
 - **Validation**: areas before/after, component counts, doorways visibly open in opening-aware version, no aggressive buffering.
 - **Done when**: both polygons generated for Level 1, layered output inspected, and a non-space storey (e.g. Level 4) reports "footprint unavailable" cleanly.
 
