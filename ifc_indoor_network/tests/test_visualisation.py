@@ -18,6 +18,6 @@ def test_build_3d_view(tmp_path):
     faces = np.array([[0, 1, 2], [0, 1, 3]])
     meshes = {"walls": [{"global_id": "W1", "name": "wall", "entity": "IfcWall", "parent_global_id": None,
                          "verts": verts, "faces": faces}]}
-    out = visualisation.build_3d_view(meshes, net, conn, "Test", 0.0, [], tmp_path / "v.html")
+    out, _fig = visualisation.build_3d_view(meshes, net, conn, "Test", 0.0, [], tmp_path / "v.html")
     text = out.read_text()
     assert "walls (1)" in text and "corridor centreline" in text and "not geographic" in text

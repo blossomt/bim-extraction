@@ -15,6 +15,7 @@ import argparse
 import json
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 
 import config
@@ -32,6 +33,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--list-storeys", action="store_true", help="Print the inventory and storeys, then exit")
     p.add_argument("--output-dir", type=Path, default=config.OUTPUT_DIR)
     p.add_argument("--no-3d", action="store_true", help="Skip the optional Plotly 3D view")
+    p.add_argument("--export-images", action="store_true",
+                   help="Also write static PNGs of the 2D network and 3D view (needs kaleido + Chrome)")
     return p.parse_args(argv)
 
 
@@ -137,24 +140,20 @@ def print_extraction(extracted: dict, inv: dict) -> list[str]:
     return mismatches
 
 
-def print_geometry(summary: dict) -> list[str]:
-    """Print the geometry summary; return short lines for the map panel."""
+def print_geometry(summary: dict) -> None:
     print(f"\nGeometry ({summary['coordinate_frame']}); walking height Z = {_fmt(summary['walking_height_z_m'])} m")
-    lines = []
     for cat, counts in summary["status_by_category"].items():
         if counts:
             print(f"  {cat:<14} {counts}")
-            lines.append(f"{cat}: {counts}")
     print(f"  Not covering walking height: {summary['not_covering_walking_height']}")
     print(f"  Geometry repairs (make_valid): {len(summary['geometry_repairs'])}")
     dw = summary["door_width_check"]
     print(f"  Door axis - OverallWidth: {dw['compared']} compared, median {_fmt(dw['median_axis_minus_overall_width_m'], 3)} m, "
           f"offsets {dw['offset_counts_m']}, {len(dw['outliers'])} outliers vs median")
     print(f"  XY bounds (m): {[round(b, 2) for b in summary['bounds_xy_m'] or []]}")
-    return lines
 
 
-def print_floor_plan(summary: dict) -> list[str]:
+def print_floor_plan(summary: dict) -> None:
     fp = summary["footprint"]
     print(f"\nFloor plan: footprint source = {summary['footprint_source']} (envelope closing {summary['envelope_closing_m']} m)")
     if summary["footprint_unavailable_reason"]:
@@ -162,20 +161,17 @@ def print_floor_plan(summary: dict) -> list[str]:
     print(f"  Footprint: {fp['area_m2']} m2, {fp['components']} components")
     print(f"  Obstacles used: {summary['obstacles_used']}; excluded (not spanning walking height): {summary['excluded_not_spanning_walking_height']}")
     print(f"  Door cuts: {summary['door_cuts']}; doors without cut: {len(summary['doors_without_cut'])}")
-    lines = [f"Footprint ({summary['footprint_source']}): {fp['area_m2']} m2"]
     for v, s in summary["walkable"].items():
         print(f"  Walkable {v:<14} {s['area_m2']:>9} m2, {s['components']:>4} components, {s['holes']:>3} holes, "
               f"lost {s['area_lost_pct']}%, slivers removed {s['slivers_removed']} ({s['sliver_area_m2']} m2), "
               f"thin removed {s['thin_removed']} ({s['thin_area_m2']} m2), repaired={s['repaired']}")
-        lines.append(f"Walkable {v}: {s['area_m2']} m2, {s['components']} components")
     print(f"  Doorways still blocked (opening-aware): {len(summary['doorways_still_blocked'])}")
     sc = summary["spaces_comparison"]
     print(f"  IfcSpace area {sc['spaces_area_m2']} m2; outside footprint {sc['spaces_area_outside_footprint_m2']} m2; "
           f"footprint not covered by spaces {sc['footprint_area_not_in_spaces_m2']} m2")
-    return lines
 
 
-def print_network(summary: dict) -> list[str]:
+def print_network(summary: dict) -> None:
     print(f"\nNetwork ({summary['variant']} walkable split at door cuts; pygeoops {summary['pygeoops_version']}) "
           f"in {summary['runtime_s']}s")
     print(f"  Regions: {summary['regions']} (rooms {summary['room_area_m2']} m2, corridors {summary['corridor_area_m2']} m2); "
@@ -187,11 +183,9 @@ def print_network(summary: dict) -> list[str]:
     print(f"  Regions without doors: {len(summary['regions_without_doors'])} {summary['regions_without_doors_by_kind']}")
     for c in summary["corridors_failed_or_empty"]:
         print(f"  {c['status'].upper()}: {c['region_id']} area {c['area_m2']} m2 {c.get('error') or ''}")
-    return [f"Network: {summary['regions']} regions; {summary['room_nodes']} room nodes; "
-            f"corridor centreline {summary['centreline_length_m']} m"]
 
 
-def print_connectors(summary: dict) -> list[str]:
+def print_connectors(summary: dict) -> None:
     print(f"\nConnectors (corridor snap limit = max({summary['max_snap_distance_m']} m, region half-width + "
           f"{summary['snap_width_margin_m']} m); {summary['connectors_over_base_limit_accepted']} accepted above base limit)")
     print(f"  Doors: {summary['doors_by_connection_status']}")
@@ -204,10 +198,31 @@ def print_connectors(summary: dict) -> list[str]:
     print(f"  Corridor regions without connectors: {len(summary['corridor_regions_without_connectors'])}")
     print(f"  Network components {summary['network_components']} ({summary['network_components_with_doors']} with doors); "
           f"largest holds {summary['largest_component_doors']} of {summary['connected_doors']} connected doors")
-    return [f"Doors: {summary['doors_by_connection_status']}",
-            f"Lifts (label-only): {lifts['by_connection_status']}",
-            f"Network components: {summary['network_components']}; largest has "
-            f"{summary['largest_component_doors']}/{summary['connected_doors']} connected doors"]
+
+
+def map_summary_lines(inv: dict, geom: dict, plan: dict, network: dict, conn: dict) -> list[str]:
+    """Short, presentation-level facts for the 2D map panel."""
+    fp, walk = plan["summary"]["footprint"], plan["summary"]["walkable"][config.CENTRELINE_VARIANT]
+    ns, cs = network["summary"], conn["summary"]
+    doors = cs["doors_by_connection_status"]
+    connected = doors.get("connected", 0) + doors.get("connected_one_side", 0)
+    statuses = Counter(status for counts in geom["summary"]["status_by_category"].values() for status, n in counts.items()
+                       for _ in range(n))
+    failures = statuses["no_geometry_output"] + statuses["empty_footprint"]
+    via_parts = statuses["no_representation"] + statuses["no_parts_at_walking_height"]
+    lifts = cs["lifts"]["by_connection_status"]
+    return [
+        f"IFC {inv['schema']}, length unit {inv['length_unit']['name']}; geometry in metres",
+        f"Floor footprint: {fp['area_m2']:.0f} m² ({plan['summary']['footprint_source']})",
+        f"Walkable area: {walk['area_m2']:.0f} m² after subtracting walls, columns and curtain walls",
+        f"Regions: {ns['regions'].get('room', 0)} room-like, {ns['regions'].get('corridor', 0)} corridor-like",
+        f"Corridor centreline (pygeoops): {ns['centreline_length_m']:.0f} m",
+        f"Doors connected: {connected} of {sum(doors.values())}; blocked doorways: {doors.get('blocked_doorway', 0)}",
+        f"Lifts: no IfcTransportElement; label-only landing doors connected {lifts.get('connected', 0)}, "
+        f"excluded (misplaced) {lifts.get('excluded_placement_inconsistent', 0)}",
+        f"Largest network component holds {cs['largest_component_doors']} of {cs['connected_doors']} connected doors",
+        f"Geometry failures: {failures}; elements without own footprint (parent stairs, overhead curtain walls): {via_parts}",
+    ]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -250,39 +265,48 @@ def main(argv: list[str] | None = None) -> int:
             t_geom = time.time()
             geom = geometry_processing.extract_geometry(model, extracted, selected.elevation_m or 0.0, config)
             print(f"\nGeometry extracted in {time.time() - t_geom:.1f}s")
-            panel_lines = print_geometry(geom["summary"])
+            print_geometry(geom["summary"])
             (args.output_dir / "geometry_summary.json").write_text(json.dumps(geom["summary"], indent=2, default=str))
             plan = geometry_processing.build_floor_plan(geom["frames"], extracted, config)
-            panel_lines = print_floor_plan(plan["summary"]) + panel_lines
+            print_floor_plan(plan["summary"])
             (args.output_dir / "floor_plan_summary.json").write_text(json.dumps(plan["summary"], indent=2, default=str))
             network = network_generation.build_network(
                 plan["frames"][f"walkable_{config.CENTRELINE_VARIANT}"], plan["frames"]["door_cuts"], config
             )
-            panel_lines = print_network(network["summary"]) + panel_lines
+            print_network(network["summary"])
             (args.output_dir / "network_summary.json").write_text(json.dumps(network["summary"], indent=2, default=str))
             conn = network_generation.build_connectors(
                 network, geom["frames"]["door_points"], geom["frames"]["lifts"], extracted["elements"]["lifts"], config
             )
-            panel_lines = print_connectors(conn["summary"]) + panel_lines
+            print_connectors(conn["summary"])
             (args.output_dir / "connectors_summary.json").write_text(json.dumps(conn["summary"], indent=2, default=str))
             net_frames = {f"net_{k}": v for k, v in {**network, **conn}.items() if k not in ("summary", "walkable")}
+            all_frames = {**geom["frames"], **plan["frames"], **net_frames}
             map_path = visualisation.build_floor_map(
-                {**geom["frames"], **plan["frames"], **net_frames},
-                selected.name, geom["summary"]["bounds_xy_m"], panel_lines,
+                all_frames, selected.name, geom["summary"]["bounds_xy_m"], map_summary_lines(inv, geom, plan, network, conn),
                 args.output_dir / "floor_plan.html",
             )
             print(f"Map written to {map_path}")
+            if args.export_images:
+                png = visualisation.export_png(visualisation.build_2d_figure(all_frames, selected.name),
+                                               args.output_dir / "floor_plan_2d.png", 1400, 1100)
+                print(f"2D image written to {png}")
             if not args.no_3d:
                 t3 = time.time()
                 meshes = geometry_processing.collect_display_meshes(model, extracted, config.PLOT3D_CATEGORIES, config)
-                path_3d = visualisation.build_3d_view(
+                idx = storeys.index(selected)
+                z_clip = storeys[idx + 1].elevation_m if idx + 1 < len(storeys) else None
+                path_3d, fig_3d = visualisation.build_3d_view(
                     meshes, network, conn, selected.name, selected.elevation_m or 0.0, config.PLOT3D_HIDDEN,
-                    args.output_dir / "floor_plan_3d.html",
+                    args.output_dir / "floor_plan_3d.html", z_clip_m=z_clip,
                 )
                 counts = {k: len(v) for k, v in meshes.items()}
                 print(f"3D view written to {path_3d} ({time.time() - t3:.1f}s; meshes {counts}; "
                       f"{path_3d.stat().st_size / 1e6:.1f} MB)")
-            print("\nPhases 1-6 and 9 done: full visualisation polish (7) and diagnostics report (8) are not implemented yet.")
+                if args.export_images:
+                    png = visualisation.export_png(fig_3d, args.output_dir / "floor_plan_3d.png", 1400, 900)
+                    print(f"3D image written to {png}")
+            print("\nPhases 1-7 and 9 done; consolidated diagnostics report (Phase 8) not implemented yet.")
 
     out_path.write_text(json.dumps(inv, indent=2, default=str))
     print(f"\nInventory written to {out_path}  ({time.time() - t0:.1f}s total)")

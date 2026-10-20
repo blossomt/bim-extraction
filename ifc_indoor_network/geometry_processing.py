@@ -115,6 +115,13 @@ def _status_for_missing(element) -> str:
     return "no_geometry_output"
 
 
+def _properties_text(rec: dict, limit: int = 12) -> str:
+    """Standard Pset_* values flattened for map popups."""
+    items = [f"{p}.{k}={v}" for p, props in rec.get("psets", {}).items() if p.startswith("Pset_")
+             for k, v in props.items() if v not in (None, "")]
+    return "; ".join(items[:limit]) + (" …" if len(items) > limit else "")
+
+
 def extract_geometry(model: ifcopenshell.file, extracted: dict, storey_elevation_m: float, cfg) -> dict:
     """Build per-category GeoDataFrames (footprints) plus door points/lines and a summary."""
     walking_z = storey_elevation_m + cfg.WALKING_HEIGHT_M
@@ -172,6 +179,7 @@ def extract_geometry(model: ifcopenshell.file, extracted: dict, storey_elevation
                 "info": _info(category, rec) + (
                     f"; parts_meshed={len(part_meshes)}/{len(parts_of[gid])}; parts_at_walking_height={len(walking_parts)}"
                     if gid in parts_of else ""),
+                "properties": _properties_text(rec),
                 "geometry": footprint,
             })
             if category == "doors" and not footprint.is_empty:
@@ -220,7 +228,8 @@ def collect_display_meshes(model: ifcopenshell.file, extracted: dict, categories
     for category in categories:
         for rec in extracted["elements"].get(category, []):
             items.append((category, rec, model.by_guid(rec["global_id"])))
-    parts_of = {rec["global_id"]: [p for rel in e.IsDecomposedBy or () for p in rel.RelatedObjects] for _, rec, e in items}
+    parts_of = {rec["global_id"]: [p for rel in e.IsDecomposedBy or () for p in rel.RelatedObjects
+                                   if p.is_a() not in cfg.PLOT3D_SKIP_PART_ENTITIES] for _, rec, e in items}
     to_mesh = [e for _, _, e in items] + [p for parts in parts_of.values() for p in parts]
     meshes = iterate_meshes(model, to_mesh, cfg.GEOMETRY_THREADS, subtract_openings=True)
 

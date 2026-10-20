@@ -82,7 +82,7 @@ Each phase ends with runnable code, tests passing, and an inspected output. Do n
 - **Deliverables**: door → corridor centreline connectors for doors adjacent to corridor regions (nearest point via `shapely.ops.nearest_points`), connector line, distance, status vs configurable max snap distance; room spokes from Phase 5 reused for room sides; flag points outside walkable polygon. Lift connection only from explicit (or approved label-based) access geometry — never shaft centres.
 - **Done when**: every door has a connector or a recorded failure reason.
 
-### Phase 7 — Full interactive 2D visualisation
+### Phase 7 — Full interactive 2D visualisation ✅
 - **Depends on**: Phases 3–6.
 - **Deliverables**: Folium HTML with all layers listed in SPEC §7, popups (GlobalId, name, entity, storey, properties, status), legend, summary panel, "synthetic local coordinates — not geographic" label.
 - **Done when**: `output/floor_plan.html` opens and every layer toggles and inspects correctly.

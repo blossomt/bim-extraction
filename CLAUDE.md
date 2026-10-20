@@ -4,7 +4,8 @@ IFC → indoor walking-network prototype. Requirements: [SPEC.md](SPEC.md). Phas
 
 ## Environment
 - Python venv at `.venv` (3.11). Install: `.venv/bin/pip install -r ifc_indoor_network/requirements.txt`.
-- Run from `ifc_indoor_network/`: `../.venv/bin/python main.py --storey "Level 1"` (`--list-storeys`, `--storey-id`, `--ifc`, `--output-dir`).
+- Run from `ifc_indoor_network/`: `../.venv/bin/python main.py --storey "Level 1"` (`--list-storeys`, `--storey-id`, `--ifc`, `--output-dir`, `--no-3d`, `--export-images`).
+- README images: `--export-images`, then copy `output/floor_plan_{2d,3d}.png` to `docs/images/`.
 - Tests: `cd ifc_indoor_network && ../.venv/bin/python -m pytest -q`.
 - Sample model: `data/20210219Architecture.ifc` (IFC2X3, Revit, length unit FOOT, ~4 s to load).
 

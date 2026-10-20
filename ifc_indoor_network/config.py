@@ -91,3 +91,5 @@ LIFT_ADJACENCY_TOL_M = 0.5
 # Optional Plotly 3D view: Phase 2 categories meshed (openings subtracted). Spaces start hidden in the legend.
 PLOT3D_CATEGORIES = ["walls", "obstacles", "doors", "stairs", "lifts", "spaces"]
 PLOT3D_HIDDEN = ["spaces"]
+# Decomposition parts not drawn in 3D (stair railings were ~60% of all vertices on Level 1).
+PLOT3D_SKIP_PART_ENTITIES = ["IfcRailing"]

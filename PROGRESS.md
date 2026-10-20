@@ -1,8 +1,15 @@
 # PROGRESS
 
-**Current phase:** Phase 9 complete (Phases 7–8 skipped for now at user request) — awaiting review.
+**Current phase:** Phases 1–7 and 9 complete; Phase 8 (consolidated diagnostics report) and Phase 10 (acceptance review) remain.
 
 ## Completed
+
+### Phase 7 — Presentation-ready visualisation + README (2026-10-21)
+- 2D map: layers grouped as `IFC ·`, `Analysis ·`, `Network ·`; analysis/intermediate layers hidden by default; click popups with name, GlobalId, entity, storey, status, info and flattened standard `Pset_*` properties (new `properties` column); short hover tooltips; legend panel; title bar with the synthetic-coordinates note; collapsible processing summary with presentation-level facts (`map_summary_lines` in `main.py`); collapsed layer control; neutral canvas background.
+- 3D view: legend groups (IFC elements / walking network), translucent walls and curtain walls, raised default camera, Z axis clipped at the next storey elevation (noted on the figure), stair railings skipped (`PLOT3D_SKIP_PART_ENTITIES`), float32 coordinates, shorter hover labels → 4.8 MB (was 13.6 MB), ~2.5 s.
+- `--export-images`: static PNGs `floor_plan_2d.png` (Plotly figure from the same geometries) and `floor_plan_3d.png` via kaleido 1.5.0 (uses local Chrome). Added to requirements.
+- Root [README.md](README.md) with method, setup, run commands, outputs, interpretation and images in `docs/images/`.
+- Console print functions no longer feed the map panel; summary line for geometry now distinguishes failures (0) from elements drawn via parts (9).
 
 ### Phase 9 — Optional Plotly 3D view (2026-10-21)
 - `geometry_processing.collect_display_meshes()`: re-meshes the selected categories with **opening subtraction enabled** (walls show door/window holes); elements without own geometry (curtain walls, parent stairs) are drawn from their decomposition parts, de-duplicated by GlobalId.
@@ -92,5 +99,4 @@
 - Reviewed after Phase 1: see "Decisions" in [PLAN.md](PLAN.md) (landing-door proxies as flagged lift access; curtain walls + columns as obstacles; wall section at walking height; git commit per phase).
 
 ## Next steps
-1. Phase 7: 2D map polish (legend, popups with properties, summary panel). Phase 8: consolidated `diagnostics.json` + console report. Phase 10: README and acceptance review.
-2. Possible 3D improvement: reduce HTML size (13.6 MB) by dropping per-vertex hover text or decimating curtain-wall parts.
+1. Phase 8: consolidated `diagnostics.json` + console report covering SPEC §9. Phase 10: acceptance review against SPEC §13 and final summary.
