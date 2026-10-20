@@ -59,14 +59,32 @@ LAYERS = [
      lambda f: {"fillColor": "#ffe08a" if f["properties"]["kind"] == "room" else "#9ecae1", "color": "#666666",
                 "weight": 1, "fillOpacity": 0.45}),
     ("Corridor centreline (pygeoops)", "net_centrelines", lambda _f: {"color": "#0055ff", "weight": 2, "opacity": 0.9}),
-    ("Room door spokes", "net_spokes", lambda _f: {"color": "#e6550d", "weight": 2, "opacity": 0.9, "dashArray": "4 3"}),
+    ("Connectors (orange = room spoke, green = corridor snap, red dashed = too long / issue)", "net_connectors",
+     lambda f: _connector_style(f)),
 ]
+
+
+def _connector_style(feature):
+    p = feature["properties"]
+    if p["status"] != "ok" or (p.get("crosses_non_walkable_m") or 0) > 0.01:
+        return {"color": "#d62728", "weight": 3, "opacity": 0.9, "dashArray": "5 4"}
+    colour = "#e6550d" if p["kind"] == "room_spoke" else "#2ca02c"
+    if p["source"] == "lift_landing_door":
+        colour = "#9467bd"
+    return {"color": colour, "weight": 2, "opacity": 0.9}
 
 # Point layers: (label, frame key, colour, radius, row filter)
 POINT_LAYERS = [
     ("Room centre nodes", "net_room_nodes", "#e6550d", 5, lambda g: g[g["doors"] > 0]),
     ("Room-like regions without doors (isolated)", "net_room_nodes", "#999999", 3, lambda g: g[g["doors"] == 0]),
-    ("Doorway nodes", "net_doors", "#d62728", 3, lambda g: g),
+    ("Doorway nodes (connected)", "net_door_access", "#2ca02c", 3,
+     lambda g: g[g["connection_status"].str.startswith("connected")]),
+    ("Doorway nodes (blocked / unconnected / partial)", "net_door_access", "#d62728", 5,
+     lambda g: g[~g["connection_status"].str.startswith("connected")]),
+    ("Lift access points (label-only landing doors, connected)", "net_lift_access", "#9467bd", 6,
+     lambda g: g[g["connection_status"] == "connected"]),
+    ("Lift landing doors excluded / unconnected", "net_lift_access", "#bbbbbb", 4,
+     lambda g: g[g["connection_status"] != "connected"]),
 ]
 
 TOOLTIP_FIELDS = ["category", "name", "global_id", "entity", "storey", "status", "info"]

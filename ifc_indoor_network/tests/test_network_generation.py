@@ -44,9 +44,14 @@ def test_room_gets_centre_node_and_corridor_gets_centreline():
     assert nodes.geometry.iloc[0].equals_exact(shapely.Point(2, 2), 1e-9)
     assert len(result["centrelines"]) == 1 and s["corridor_status"] == {"ok": 1}
     assert s["doors_by_status"] == {"open": 1} and s["doors_by_adjacent_region_count"] == {2: 1}
-    spoke = result["spokes"].iloc[0]
-    assert spoke["door_global_id"] == "D1" and spoke["leaves_walkable_m"] == 0
     assert s["regions_without_doors"] == []
+
+    conn = ng.build_connectors(result, _cuts(), _cuts(), [], config)
+    kinds = sorted(conn["connectors"]["kind"])
+    assert kinds == ["corridor_snap", "room_spoke"]
+    assert (conn["connectors"]["status"] == "ok").all()
+    assert conn["summary"]["doors_by_connection_status"] == {"connected": 1}
+    assert conn["summary"]["network_components"] == 1
 
 
 def test_blocked_door_gets_no_spoke():
@@ -54,8 +59,36 @@ def test_blocked_door_gets_no_spoke():
     cut_outside = shapely.box(10, 10, 11, 10.2)
     result = ng.build_network(_components(room), _cuts(("D1", cut_outside)), config)
     assert result["summary"]["doors_by_status"] == {"blocked": 1}
-    assert len(result["spokes"]) == 0
     assert result["summary"]["regions_without_doors"] == ["R000"]
+    conn = ng.build_connectors(result, _cuts(), _cuts(), [], config)
+    assert len(conn["connectors"]) == 0
+    assert conn["summary"]["doors_by_connection_status"] == {"blocked_doorway": 1}
+
+
+def _lift(gid, misplaced, access=True):
+    return {"global_id": gid, "name": "Elevator_LandingDoor2L:x", "identification": "label_only",
+            "is_access_point_candidate": access, "placement_z_outside_storey": misplaced, "access_rule": "r"}
+
+
+def test_lift_landing_doors_connected_or_excluded():
+    walkable, door = _plan()
+    net = ng.build_network(_components(walkable), _cuts(), config)
+    landing = shapely.box(10, 11.8, 11, 12.0)
+    lifts = gpd.GeoDataFrame([{"global_id": g, "geometry": landing} for g in ("L1", "L2", "L3")], geometry="geometry", crs=None)
+    conn = ng.build_connectors(net, _cuts(), lifts, [_lift("L1", False), _lift("L2", True), _lift("L3", False, access=False)], config)
+    assert conn["summary"]["lifts"]["by_connection_status"] == {"connected": 1, "excluded_placement_inconsistent": 1}
+    lift_conn = conn["connectors"][conn["connectors"]["source"] == "lift_landing_door"]
+    assert lift_conn["source_global_id"].tolist() == ["L1"] and lift_conn["identification"].iloc[0] == "label_only"
+
+
+def test_long_corridor_snap_is_flagged(monkeypatch):
+    monkeypatch.setattr(config, "MAX_SNAP_DISTANCE_M", 0.1)
+    monkeypatch.setattr(config, "SNAP_WIDTH_MARGIN_M", -10.0)
+    walkable, door = _plan()
+    net = ng.build_network(_components(walkable), _cuts(("D1", door)), config)
+    conn = ng.build_connectors(net, _cuts(), _cuts(), [], config)
+    assert conn["summary"]["connectors_too_long"]
+    assert conn["summary"]["doors_by_connection_status"] == {"partial": 1}
 
 
 def test_corridor_failure_is_reported(monkeypatch):

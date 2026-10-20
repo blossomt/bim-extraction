@@ -1,8 +1,16 @@
 # PROGRESS
 
-**Current phase:** Phase 5 revised (room/corridor network) — awaiting review before Phase 6.
+**Current phase:** Phase 6 complete; Phase 9 (3D view) in progress (Phases 7–8 skipped for now at user request).
 
 ## Completed
+
+### Phase 6 — Door and lift connectors (2026-10-21)
+- `network_generation.build_connectors()`: for each open doorway, one edge per adjacent region — `room_spoke` (doorway → room centre node) or `corridor_snap` (doorway → nearest point on that corridor's centreline, `shapely.ops.nearest_points`). Per connector: distance, snap limit, status (`ok` / `too_long` / `no_centreline`), length crossing non-walkable area. Per door: access point (doorway centroid), adjustment from the door footprint centre, in-walkable flag, overall status (`connected`, `connected_one_side`, `partial`, `unconnected`, `blocked_doorway`, `no_adjacent_region`).
+- Snap limit per corridor region = max(3.0 m, max inscribed radius + 1.0 m): a fixed 3 m rejected 5 valid doors on the ~7 m-wide-from-centre atrium and split the network. Accepted snaps above 3 m are counted.
+- Lifts: only `Elevator_LandingDoor*` proxies (label-only) not flagged by placement; footprint centroid → nearest region within 0.5 m → room node / corridor centreline. Misplaced ones: `excluded_placement_inconsistent`.
+- Network connectivity: centrelines + accepted connectors grouped into components; doors per component.
+- Level 1: 104 doors connected + 14 connected one side (external/single-region) + 2 blocked; 231 connectors (141 corridor snaps, mean 1.56 m, max 7.10 m; 90 room spokes), 0 too long, 5 crossing ≤ 0.34 m of non-walkable; lifts 9 connected, 7 excluded; **one network component holds all 118 connected doors** (13 other components are doorless corridor fragments). Level 2: 15 components with doors; Level 4: 47 (incomplete envelope).
+- Map: connectors (spoke/snap/issue styles), doorway nodes split by status, lift access points (connected vs excluded). Output `connectors_summary.json`.
 
 ### Phase 5 revision — room nodes + corridor centrelines (2026-10-21)
 - Requested: a centreline for the central corridor (not an `IfcSpace`) and no diagonal "X" skeletons in rectangular rooms.
@@ -48,7 +56,7 @@
 - [ifc_indoor_network/main.py](ifc_indoor_network/main.py): CLI `--ifc --storey --storey-id --list-storeys --output-dir`; writes `output/inventory.json`. Exit code 2 on bad path / failed selection.
 
 ## Tests
-- `cd ifc_indoor_network && ../.venv/bin/python -m pytest -q` → **33 passed** (~16 s; includes sample-file integration tests, skipped if file absent).
+- `cd ifc_indoor_network && ../.venv/bin/python -m pytest -q` → **35 passed** (~17 s; includes sample-file integration tests, skipped if file absent).
 - Manual: `main.py` (Level 1) exit 0; `--storey "Level 9"` exit 2 listing storeys; `--storey "level 7a"` selects Level 7A (not Level 7); bad `--ifc` path exit 2.
 
 ## Known issues / data-quality findings
@@ -72,9 +80,10 @@
 - Centreline is a raw medial axis: diagonal "X" branches in rectangular rooms and saw-tooth spurs along façade mullions/columns. Resolved for rectangular rooms by the room-node revision; corridor centrelines still show some loops around islands (e.g. low partitions in the atrium).
 - Room/corridor classification is geometric (rectangularity/aspect), not from IFC labels. Non-rectangular rooms (L-shapes) are treated as corridors and get a centreline.
 - WC stall doors are `IfcBuildingElementProxy` (`10_Stall Door`), not `IfcDoor`, so stall cubicles are doorless regions.
+- Level 2 network splits into 15 door-bearing components and Level 4 into 47 (incomplete envelopes / missing door relationships); Level 1 is fully connected.
 
 ## Decisions
 - Reviewed after Phase 1: see "Decisions" in [PLAN.md](PLAN.md) (landing-door proxies as flagged lift access; curtain walls + columns as obstacles; wall section at walking height; git commit per phase).
 
 ## Next steps
-1. Phase 6: connectors — doorway nodes → nearest corridor centreline point (distance vs max snap distance, status); room spokes reused; landing-door proxies as label-only lift access (misplaced ones excluded, decision 5).
+1. Phase 9: optional Plotly 3D view (user request), then Phases 7–8 (map polish, diagnostics report) and 10 (README).

@@ -77,7 +77,7 @@ Each phase ends with runnable code, tests passing, and an inspected output. Do n
 - **Validation**: runtime, region/door adjacency counts, visual overlay.
 - **Done when**: every corridor region has a centreline or a recorded reason; every room region has a node; door adjacency reported.
 
-### Phase 6 — Door and lift connectors
+### Phase 6 — Door and lift connectors ✅
 - **Depends on**: Phase 5.
 - **Deliverables**: door → corridor centreline connectors for doors adjacent to corridor regions (nearest point via `shapely.ops.nearest_points`), connector line, distance, status vs configurable max snap distance; room spokes from Phase 5 reused for room sides; flag points outside walkable polygon. Lift connection only from explicit (or approved label-based) access geometry — never shaft centres.
 - **Done when**: every door has a connector or a recorded failure reason.

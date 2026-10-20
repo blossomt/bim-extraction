@@ -79,3 +79,11 @@ CORRIDOR_MIN_BRANCH_M = 2.0
 CORRIDOR_SIMPLIFY_M = 0.1
 # A region is adjacent to a door if it lies within this distance of the door cut.
 DOOR_ADJACENCY_TOL_M = 0.05
+
+# Connectors: doorway/lift access point -> nearest corridor centreline point. Longer connectors are flagged, not accepted.
+# Limit per corridor region = max(MAX_SNAP_DISTANCE_M, region's max inscribed radius + SNAP_WIDTH_MARGIN_M):
+# in wide lobbies the centreline is legitimately far from the walls.
+MAX_SNAP_DISTANCE_M = 3.0
+SNAP_WIDTH_MARGIN_M = 1.0
+# Lift landing-door footprints are linked to walkable regions within this distance.
+LIFT_ADJACENCY_TOL_M = 0.5

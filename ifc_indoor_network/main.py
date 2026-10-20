@@ -5,6 +5,7 @@ Phase 2: semantic element extraction for the selected storey.
 Phase 3: 2D geometry extraction and a minimal local-coordinate map.
 Phase 4: floor footprint (wall envelope) and naive / opening-aware walkable polygons.
 Phase 5: walking network — walkable area split at door cuts; room centre nodes; pygeoops corridor centrelines.
+Phase 6: door and lift connectors.
 """
 
 from __future__ import annotations
@@ -177,8 +178,7 @@ def print_network(summary: dict) -> list[str]:
           f"in {summary['runtime_s']}s")
     print(f"  Regions: {summary['regions']} (rooms {summary['room_area_m2']} m2, corridors {summary['corridor_area_m2']} m2); "
           f"split log {summary['region_split']}")
-    print(f"  Room rule {summary['room_rule']} -> {summary['room_nodes']} centre nodes, {summary['room_spokes']} door spokes"
-          f" ({len(summary['spokes_leaving_walkable'])} leave walkable)")
+    print(f"  Room rule {summary['room_rule']} -> {summary['room_nodes']} centre nodes")
     print(f"  Corridor centreline params {summary['corridor_parameters']}: status {summary['corridor_status']}, "
           f"{summary['centreline_components']} components, {summary['centreline_length_m']} m")
     print(f"  Doors: {summary['doors_by_status']}; by adjacent region count {summary['doors_by_adjacent_region_count']}")
@@ -187,6 +187,25 @@ def print_network(summary: dict) -> list[str]:
         print(f"  {c['status'].upper()}: {c['region_id']} area {c['area_m2']} m2 {c.get('error') or ''}")
     return [f"Network: {summary['regions']} regions; {summary['room_nodes']} room nodes; "
             f"corridor centreline {summary['centreline_length_m']} m"]
+
+
+def print_connectors(summary: dict) -> list[str]:
+    print(f"\nConnectors (corridor snap limit = max({summary['max_snap_distance_m']} m, region half-width + "
+          f"{summary['snap_width_margin_m']} m); {summary['connectors_over_base_limit_accepted']} accepted above base limit)")
+    print(f"  Doors: {summary['doors_by_connection_status']}")
+    print(f"  Connectors: {summary['connectors_by_kind_status']}; corridor snap distance {summary['corridor_snap_distance_m']}")
+    print(f"  Too long: {len(summary['connectors_too_long'])}; crossing non-walkable: {len(summary['connectors_crossing_non_walkable'])}; "
+          f"door access points outside walkable: {len(summary['door_access_points_outside_walkable'])} "
+          f"(max adjustment from door footprint centre {summary['door_access_point_adjustment_max_m']} m)")
+    lifts = summary["lifts"]
+    print(f"  Lift access (label-only landing doors): {lifts['access_point_candidates']} candidates -> {lifts['by_connection_status']}")
+    print(f"  Corridor regions without connectors: {len(summary['corridor_regions_without_connectors'])}")
+    print(f"  Network components {summary['network_components']} ({summary['network_components_with_doors']} with doors); "
+          f"largest holds {summary['largest_component_doors']} of {summary['connected_doors']} connected doors")
+    return [f"Doors: {summary['doors_by_connection_status']}",
+            f"Lifts (label-only): {lifts['by_connection_status']}",
+            f"Network components: {summary['network_components']}; largest has "
+            f"{summary['largest_component_doors']}/{summary['connected_doors']} connected doors"]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -239,13 +258,19 @@ def main(argv: list[str] | None = None) -> int:
             )
             panel_lines = print_network(network["summary"]) + panel_lines
             (args.output_dir / "network_summary.json").write_text(json.dumps(network["summary"], indent=2, default=str))
+            conn = network_generation.build_connectors(
+                network, geom["frames"]["door_points"], geom["frames"]["lifts"], extracted["elements"]["lifts"], config
+            )
+            panel_lines = print_connectors(conn["summary"]) + panel_lines
+            (args.output_dir / "connectors_summary.json").write_text(json.dumps(conn["summary"], indent=2, default=str))
+            net_frames = {f"net_{k}": v for k, v in {**network, **conn}.items() if k not in ("summary", "walkable")}
             map_path = visualisation.build_floor_map(
-                {**geom["frames"], **plan["frames"], **{f"net_{k}": v for k, v in network.items() if k != "summary"}},
+                {**geom["frames"], **plan["frames"], **net_frames},
                 selected.name, geom["summary"]["bounds_xy_m"], panel_lines,
                 args.output_dir / "floor_plan.html",
             )
             print(f"Map written to {map_path}")
-            print("\nPhases 1-5 only: door/lift connectors are not implemented yet.")
+            print("\nPhases 1-6 only: full visualisation polish and diagnostics report are not implemented yet.")
 
     out_path.write_text(json.dumps(inv, indent=2, default=str))
     print(f"\nInventory written to {out_path}  ({time.time() - t0:.1f}s total)")

@@ -128,3 +128,10 @@ def test_sample_level1_geometry():
     largest = net["regions"].iloc[0]
     assert largest["kind"] == "corridor" and largest["area_m2"] > 1500
     assert (net["centrelines"]["region_id"] == largest["region_id"]).any()
+
+    conn = network_generation.build_connectors(
+        net, geom["frames"]["door_points"], geom["frames"]["lifts"], extracted["elements"]["lifts"], config)["summary"]
+    assert conn["doors_by_connection_status"].get("blocked_doorway") == 2
+    assert conn["connectors_too_long"] == []
+    assert conn["lifts"]["by_connection_status"] == {"connected": 9, "excluded_placement_inconsistent": 7}
+    assert conn["network_components_with_doors"] == 1
