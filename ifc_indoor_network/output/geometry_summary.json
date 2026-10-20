@@ -1,0 +1,91 @@
+{
+  "coordinate_frame": "IfcOpenShell world XY, metres (local project coordinates; not geographic)",
+  "walking_height_z_m": 1.0,
+  "status_by_category": {
+    "slabs": {},
+    "spaces": {
+      "ok": 95
+    },
+    "walls": {
+      "ok": 278
+    },
+    "obstacles": {
+      "no_parts_at_walking_height": 2,
+      "ok_from_parts": 10,
+      "ok": 93
+    },
+    "openings": {
+      "ok": 233
+    },
+    "doors": {
+      "ok": 120
+    },
+    "stairs": {
+      "ok": 7,
+      "no_representation": 7
+    },
+    "stair_flights": {},
+    "lifts": {
+      "ok": 38
+    }
+  },
+  "not_covering_walking_height": {
+    "spaces": 0,
+    "walls": 0,
+    "obstacles": 4,
+    "openings": 13,
+    "doors": 0,
+    "stairs": 0,
+    "lifts": 11
+  },
+  "geometry_repairs": [],
+  "door_width_check": {
+    "compared": 120,
+    "median_axis_minus_overall_width_m": 0.15260000000000362,
+    "offset_counts_m": {
+      "0.15": 112,
+      "0.0": 6,
+      "0.61": 2
+    },
+    "outliers": [
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qCHF",
+        "diff_m": 0.609
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qCHE",
+        "diff_m": 0.61
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qFED",
+        "diff_m": 0.001
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qFE9",
+        "diff_m": -0.0
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qFDY",
+        "diff_m": 0.001
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0q8OV",
+        "diff_m": 0.001
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0q8NI",
+        "diff_m": 0.001
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0q8NE",
+        "diff_m": -0.0
+      }
+    ]
+  },
+  "bounds_xy_m": [
+    -12.788,
+    44.565,
+    87.448,
+    136.062
+  ]
+}

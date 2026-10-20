@@ -7,11 +7,11 @@ IFC → indoor walking-network prototype. Requirements: [SPEC.md](SPEC.md). Phas
 - Run from `ifc_indoor_network/`: `../.venv/bin/python main.py --storey "Level 1"` (`--list-storeys`, `--storey-id`, `--ifc`, `--output-dir`, `--no-3d`, `--export-images`).
 - README images: `--export-images`, then copy `output/floor_plan_{2d,3d}.png` to `docs/images/`.
 - Tests: `cd ifc_indoor_network && ../.venv/bin/python -m pytest -q`.
-- Sample model: `data/20210219Architecture.ifc` (IFC2X3, Revit, length unit FOOT, ~4 s to load).
+- Sample model: `data/20210219Architecture.ifc` (IFC2X3, Revit, length unit FOOT, ~4 s to load), from the Open IFC Model Repository (openifcmodel.cs.auckland.ac.nz).
 
 ## Rules
 - Work phase by phase; stop at each phase checkpoint for review. Do not implement later phases early.
-- Commit to git at the end of each phase (`Phase N: ...`). `data/*.ifc` and `output/` are git-ignored.
+- Commit to git at the end of each phase (`Phase N: ...`). `data/*.ifc` is git-ignored; `ifc_indoor_network/output/` (Level 1 sample outputs) is committed.
 - Keep modules separate: `ifc_reader` (semantics only) → `geometry_processing` → `network_generation` → `visualisation` → `diagnostics`.
 - Storey membership only via explicit IFC relationships; record the path. Never assign by geometry, never guess.
 - Never invent IFC labels, relationships, openings, lift entrances or geographic coordinates. Report gaps instead.

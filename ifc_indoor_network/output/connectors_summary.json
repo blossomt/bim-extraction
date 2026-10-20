@@ -1,0 +1,86 @@
+{
+  "max_snap_distance_m": 3.0,
+  "snap_width_margin_m": 1.0,
+  "connectors_over_base_limit_accepted": 9,
+  "doors_by_connection_status": {
+    "connected": 104,
+    "connected_one_side": 14,
+    "blocked_doorway": 2
+  },
+  "connectors_by_kind_status": {
+    "corridor_snap:ok": 141,
+    "room_spoke:ok": 90
+  },
+  "corridor_snap_distance_m": {
+    "mean": 1.563,
+    "max": 7.101
+  },
+  "connectors_too_long": [],
+  "connectors_crossing_non_walkable": [
+    {
+      "source_global_id": "1IjDNnD1b6tenKMZR0qCT3",
+      "kind": "corridor_snap",
+      "length_m": 0.135
+    },
+    {
+      "source_global_id": "1IjDNnD1b6tenKMZR0qCIc",
+      "kind": "room_spoke",
+      "length_m": 0.339
+    },
+    {
+      "source_global_id": "1IjDNnD1b6tenKMZR0qCIU",
+      "kind": "room_spoke",
+      "length_m": 0.159
+    },
+    {
+      "source_global_id": "1IjDNnD1b6tenKMZR0qCIR",
+      "kind": "room_spoke",
+      "length_m": 0.148
+    },
+    {
+      "source_global_id": "1IjDNnD1b6tenKMZR0qCEY",
+      "kind": "corridor_snap",
+      "length_m": 0.218
+    }
+  ],
+  "door_access_points_outside_walkable": [
+    "1IjDNnD1b6tenKMZR0qFDY",
+    "1IjDNnD1b6tenKMZR0q8OV"
+  ],
+  "door_access_point_adjustment_max_m": 0.118,
+  "unconnected_doors": [
+    {
+      "door_global_id": "1IjDNnD1b6tenKMZR0qFDY",
+      "status": "blocked_doorway"
+    },
+    {
+      "door_global_id": "1IjDNnD1b6tenKMZR0q8OV",
+      "status": "blocked_doorway"
+    }
+  ],
+  "lifts": {
+    "access_point_candidates": 16,
+    "identification": {
+      "label_only": 16
+    },
+    "by_connection_status": {
+      "connected": 9,
+      "excluded_placement_inconsistent": 7
+    }
+  },
+  "corridor_regions_without_connectors": [
+    "R024",
+    "R025",
+    "R079",
+    "R129",
+    "R133",
+    "R134",
+    "R135",
+    "R136",
+    "R137"
+  ],
+  "network_components": 14,
+  "network_components_with_doors": 1,
+  "largest_component_doors": 118,
+  "connected_doors": 118
+}

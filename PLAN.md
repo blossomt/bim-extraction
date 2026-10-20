@@ -30,7 +30,7 @@ Default target storey: **Level 1** (95 spaces, 120 doors, 38 lift label candidat
 1. **Lift access**: use name-based `Elevator_LandingDoor*` proxies as lift access points, always flagged `identification = label_only`. Other elevator-labelled objects (car doors, cabins, columns) are context only, never access points.
 2. **Extra obstacles**: subtract `IfcCurtainWall` and `IfcColumn` (configurable, separate layers). Railings/furnishings/proxies are not obstacles.
 3. **Wall 2D method** (revised in Phase 3 on evidence): a horizontal section at walking height would open 58 of 66 Level 1 window openings (sills at 0.71 m) and 48 unfilled openings, violating the "never window openings" rule. Instead: walls are meshed **solid** (`disable-opening-subtractions`); naive version = full solid footprints; opening-aware version = solid footprints minus footprints of **door-filled openings that span walking height** (storey elevation + 1.0 m).
-4. **Version control**: git repository; commit at the end of each phase. Large IFC data and generated outputs are git-ignored.
+4. **Version control**: git repository; commit at the end of each phase. The large IFC model is git-ignored; Level 1 sample outputs in `ifc_indoor_network/output/` are committed.
 
 ## Decision (reviewed after Phase 2)
 

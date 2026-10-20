@@ -1,0 +1,97 @@
+{
+  "variant": "opening_aware",
+  "pygeoops_version": "0.6.0",
+  "room_rule": {
+    "min_rectangularity": 0.85,
+    "max_aspect": 3.0
+  },
+  "corridor_parameters": {
+    "densify_distance": 0.25,
+    "min_branch_length": 2.0,
+    "simplifytolerance": 0.1
+  },
+  "runtime_s": 0.35,
+  "region_split": {
+    "repaired": false,
+    "slivers_removed": 1,
+    "sliver_area_m2": 0.002,
+    "thin_removed": 0,
+    "thin_area_m2": 0
+  },
+  "regions": {
+    "corridor": 32,
+    "room": 107
+  },
+  "room_area_m2": 2348.231,
+  "corridor_area_m2": 3882.671,
+  "corridor_status": {
+    "ok": 32
+  },
+  "centreline_components": 32,
+  "centreline_length_m": 1338.696,
+  "room_nodes": 107,
+  "doors_by_status": {
+    "open": 118,
+    "blocked": 2
+  },
+  "doors_by_adjacent_region_count": {
+    "2": 104,
+    "1": 14,
+    "0": 2
+  },
+  "regions_without_doors": [
+    "R016",
+    "R017",
+    "R018",
+    "R020",
+    "R024",
+    "R025",
+    "R040",
+    "R041",
+    "R044",
+    "R053",
+    "R055",
+    "R060",
+    "R061",
+    "R062",
+    "R067",
+    "R069",
+    "R070",
+    "R071",
+    "R072",
+    "R073",
+    "R074",
+    "R075",
+    "R077",
+    "R079",
+    "R099",
+    "R105",
+    "R106",
+    "R108",
+    "R109",
+    "R110",
+    "R111",
+    "R112",
+    "R113",
+    "R114",
+    "R115",
+    "R121",
+    "R122",
+    "R123",
+    "R124",
+    "R125",
+    "R126",
+    "R129",
+    "R133",
+    "R134",
+    "R135",
+    "R136",
+    "R137",
+    "R138"
+  ],
+  "regions_without_doors_by_kind": {
+    "room": 39,
+    "corridor": 9
+  },
+  "corridors_failed_or_empty": []
+}

@@ -42,6 +42,8 @@ Defaults for the IFC path, storey, tolerances and layers are set in [ifc_indoor_
 
 ## Outputs (`ifc_indoor_network/output/`)
 
+The outputs for the sample model's Level 1 are committed, so they can be browsed without re-running the pipeline.
+
 | File | Content |
 |---|---|
 | `floor_plan.html` | Interactive 2D map (Folium). Click any element for its GlobalId, properties and status; IFC, analysis and network layers can be toggled. |
@@ -65,3 +67,7 @@ Coordinates are IFC world X/Y in metres, shown on a blank canvas. They are **syn
 - 9 lift landing doors are connected (label-only). 7 are excluded because they sit at Level 2 height while being contained in Level 1.
 
 Status, decisions and known issues are recorded in [PLAN.md](PLAN.md) and [PROGRESS.md](PROGRESS.md).
+
+## Credits
+
+Sample IFC model (`20210219Architecture.ifc`) from the [Open IFC Model Repository](https://openifcmodel.cs.auckland.ac.nz/), University of Auckland. The model file itself is not included in this repository.

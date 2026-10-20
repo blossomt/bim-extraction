@@ -1,0 +1,1380 @@
+{
+  "schema": "IFC2X3",
+  "length_unit": {
+    "name": "FOOT",
+    "entity": "IfcConversionBasedUnit",
+    "scale_to_metre": 0.3048
+  },
+  "georeferencing": {
+    "sites": [
+      {
+        "global_id": "248gkaFu11TgGGHnEQdH2O",
+        "name": "Default",
+        "ref_latitude_dms": [
+          42,
+          24,
+          53,
+          508911
+        ],
+        "ref_longitude_dms": [
+          -71,
+          -15,
+          -29,
+          -58837
+        ],
+        "ref_elevation": -38.7378888204504
+      }
+    ],
+    "ifc_map_conversion_count": null
+  },
+  "buildings": [
+    {
+      "global_id": "248gkaFu11TgGGHnEQdH2R",
+      "name": "",
+      "long_name": ""
+    }
+  ],
+  "storeys": [
+    {
+      "global_id": "248gkaFu11TgGGHnDbO3GV",
+      "name": "Level 1",
+      "long_name": "Level 1",
+      "elevation_raw": 0.0,
+      "elevation_m": 0.0,
+      "placement_z_m": 0.0,
+      "building": "248gkaFu11TgGGHnEQdH2R",
+      "element_counts": {
+        "IfcWall": {
+          "direct": 278
+        },
+        "IfcWallStandardCase": {
+          "direct": 276
+        },
+        "IfcSpace": {
+          "direct": 95
+        },
+        "IfcDoor": {
+          "direct": 114,
+          "indirect": 6
+        },
+        "IfcStair": {
+          "indirect": 7,
+          "direct": 7
+        },
+        "IfcOpeningElement": {
+          "indirect": 233
+        }
+      }
+    },
+    {
+      "global_id": "248gkaFu11TgGGHnDbO3GS",
+      "name": "Level 2",
+      "long_name": "Level 2",
+      "elevation_raw": 20.0,
+      "elevation_m": 6.096,
+      "placement_z_m": 6.096,
+      "building": "248gkaFu11TgGGHnEQdH2R",
+      "element_counts": {
+        "IfcWall": {
+          "direct": 244
+        },
+        "IfcWallStandardCase": {
+          "direct": 241
+        },
+        "IfcSlab": {
+          "indirect": 1
+        },
+        "IfcSpace": {
+          "direct": 91
+        },
+        "IfcDoor": {
+          "direct": 56,
+          "indirect": 1
+        },
+        "IfcStair": {
+          "indirect": 7,
+          "direct": 7
+        },
+        "IfcOpeningElement": {
+          "indirect": 146
+        }
+      }
+    },
+    {
+      "global_id": "248gkaFu11TgGGHnDbO3GI",
+      "name": "Level 3",
+      "long_name": "Level 3",
+      "elevation_raw": 36.0,
+      "elevation_m": 10.972800000000001,
+      "placement_z_m": 10.972800000000001,
+      "building": "248gkaFu11TgGGHnEQdH2R",
+      "element_counts": {
+        "IfcWall": {
+          "direct": 321
+        },
+        "IfcWallStandardCase": {
+          "direct": 292
+        },
+        "IfcSlab": {
+          "indirect": 21
+        },
+        "IfcDoor": {
+          "direct": 93
+        },
+        "IfcStair": {
+          "indirect": 7,
+          "direct": 7
+        },
+        "IfcOpeningElement": {
+          "indirect": 119
+        }
+      }
+    },
+    {
+      "global_id": "248gkaFu11TgGGHnDbO3GJ",
+      "name": "Level 4",
+      "long_name": "Level 4",
+      "elevation_raw": 52.0,
+      "elevation_m": 15.8496,
+      "placement_z_m": 15.8496,
+      "building": "248gkaFu11TgGGHnEQdH2R",
+      "element_counts": {
+        "IfcWall": {
+          "direct": 331
+        },
+        "IfcWallStandardCase": {
+          "direct": 291
+        },
+        "IfcDoor": {
+          "direct": 86
+        },
+        "IfcStair": {
+          "indirect": 6,
+          "direct": 6
+        },
+        "IfcOpeningElement": {
+          "indirect": 97
+        }
+      }
+    },
+    {
+      "global_id": "248gkaFu11TgGGHnDbO3GG",
+      "name": "Level 5",
+      "long_name": "Level 5",
+      "elevation_raw": 68.0,
+      "elevation_m": 20.7264,
+      "placement_z_m": 20.7264,
+      "building": "248gkaFu11TgGGHnEQdH2R",
+      "element_counts": {
+        "IfcWall": {
+          "direct": 297
+        },
+        "IfcWallStandardCase": {
+          "direct": 240
+        },
+        "IfcDoor": {
+          "direct": 72,
+          "indirect": 1
+        },
+        "IfcStair": {
+          "indirect": 2,
+          "direct": 2
+        },
+        "IfcOpeningElement": {
+          "indirect": 85
+        }
+      }
+    },
+    {
+      "global_id": "248gkaFu11TgGGHnDbO3GH",
+      "name": "Level 6",
+      "long_name": "Level 6",
+      "elevation_raw": 84.0,
+      "elevation_m": 25.6032,
+      "placement_z_m": 25.6032,
+      "building": "248gkaFu11TgGGHnEQdH2R",
+      "element_counts": {
+        "IfcWall": {
+          "direct": 64
+        },
+        "IfcWallStandardCase": {
+          "direct": 21
+        },
+        "IfcSpace": {
+          "direct": 1
+        },
+        "IfcDoor": {
+          "direct": 5
+        },
+        "IfcStair": {
+          "indirect": 1,
+          "direct": 1
+        },
+        "IfcOpeningElement": {
+          "indirect": 47
+        }
+      }
+    },
+    {
+      "global_id": "248gkaFu11TgGGHnDbOV1y",
+      "name": "Level 7A",
+      "long_name": "Level 7A",
+      "elevation_raw": 100.0,
+      "elevation_m": 30.48,
+      "placement_z_m": 30.48,
+      "building": "248gkaFu11TgGGHnEQdH2R",
+      "element_counts": {
+        "IfcWall": {
+          "direct": 28
+        },
+        "IfcWallStandardCase": {
+          "direct": 20
+        },
+        "IfcOpeningElement": {
+          "indirect": 36
+        }
+      }
+    },
+    {
+      "global_id": "248gkaFu11TgGGHnDbO3GK",
+      "name": "Level 7",
+      "long_name": "Level 7",
+      "elevation_raw": 111.0,
+      "elevation_m": 33.8328,
+      "placement_z_m": 33.8328,
+      "building": "248gkaFu11TgGGHnEQdH2R",
+      "element_counts": {
+        "IfcWall": {
+          "direct": 15
+        },
+        "IfcWallStandardCase": {
+          "direct": 11
+        },
+        "IfcSlab": {
+          "indirect": 2
+        },
+        "IfcDoor": {
+          "direct": 1
+        },
+        "IfcOpeningElement": {
+          "indirect": 3
+        }
+      }
+    }
+  ],
+  "entity_counts": {
+    "IfcWall": 1578,
+    "IfcWallStandardCase": 1392,
+    "IfcSlab": 24,
+    "IfcSpace": 187,
+    "IfcDoor": 435,
+    "IfcStair": 60,
+    "IfcStairFlight": 0,
+    "IfcTransportElement": 0,
+    "IfcOpeningElement": 766
+  },
+  "unassigned_element_counts": {},
+  "relationship_counts": {
+    "IfcRelContainedInSpatialStructure": 34,
+    "IfcRelReferencedInSpatialStructure": 0,
+    "IfcRelAggregates": 238,
+    "IfcRelVoidsElement": 766,
+    "IfcRelFillsElement": 558,
+    "IfcRelSpaceBoundary": 0,
+    "IfcRelConnectsPathElements": 2156
+  },
+  "containment_by_structure_type": {
+    "IfcBuildingStorey": {
+      "relations": 8,
+      "elements": 4970
+    },
+    "IfcSpace": {
+      "relations": 26,
+      "elements": 415
+    }
+  },
+  "membership_paths": {
+    "aggregated_by>IfcCurtainWall>contained_in>IfcBuildingStorey": 9737,
+    "contained_in>IfcBuildingStorey": 4970,
+    "voids>IfcWallStandardCase>contained_in>IfcBuildingStorey": 754,
+    "contained_in>IfcSpace>aggregated_by>IfcBuildingStorey": 415,
+    "aggregated_by>IfcBuildingStorey": 187,
+    "aggregated_by>IfcStair>contained_in>IfcBuildingStorey": 90,
+    "aggregated_by>IfcRoof>contained_in>IfcBuildingStorey": 24,
+    "voids>IfcSlab>aggregated_by>IfcRoof>contained_in>IfcBuildingStorey": 10,
+    "voids>IfcWall>contained_in>IfcBuildingStorey": 2
+  },
+  "unassigned": {
+    "count": 0,
+    "by_entity": {},
+    "by_stop_reason": {},
+    "examples": []
+  },
+  "wall_is_external": {
+    "True": 262,
+    "False": 1316
+  },
+  "labels": {
+    "IfcWall": {
+      "count": 1578,
+      "predefined_types": {
+        "None": 1578
+      },
+      "object_types_top": {
+        "Basic Wall:Interior - 4 7/8\" Partition (1-hr):5673": 794,
+        "Basic Wall:Interior - 6 1/8\" Partition (2-hr):5674": 376,
+        "Basic Wall:Exterior - Metal Panel on 6\" Mtl Stud:4846": 181,
+        "Basic Wall:Interior - CMU - 7 5/8\" - Partition:2515": 121,
+        "Basic Wall:Exterior - Metal Panel on 3 5/8\" Mtl Stud:5176": 49,
+        "Basic Wall:Interior - Donor Wall:4861": 20,
+        "Basic Wall:Exterior - Brick on Mtl. Stud w/ cap:2513": 19,
+        "Basic Wall:Exterior - CMU - 7 5/8\":5206": 8,
+        "Basic Wall:Interior - Water Wall:5369": 5,
+        "Basic Wall:Exterior - Brick on Mtl. Stud:3965": 3,
+        "Basic Wall:Exterior - Metal Panel on Mtl. Stud double Exterior:5308": 1,
+        "Basic Wall:Exterior - Metal Panel on Mtl. Stud at Front Entry:5366": 1
+      },
+      "distinct_object_types": 12,
+      "type_objects_top": {
+        "IfcWallType:Basic Wall:Interior - 4 7/8\" Partition (1-hr)": 794,
+        "IfcWallType:Basic Wall:Interior - 6 1/8\" Partition (2-hr)": 376,
+        "IfcWallType:Basic Wall:Exterior - Metal Panel on 6\" Mtl Stud": 181,
+        "IfcWallType:Basic Wall:Interior - CMU - 7 5/8\" - Partition": 121,
+        "IfcWallType:Basic Wall:Exterior - Metal Panel on 3 5/8\" Mtl Stud": 49,
+        "IfcWallType:Basic Wall:Interior - Donor Wall": 20,
+        "IfcWallType:Basic Wall:Exterior - Brick on Mtl. Stud w/ cap": 19,
+        "IfcWallType:Basic Wall:Exterior - CMU - 7 5/8\"": 8,
+        "IfcWallType:Basic Wall:Interior - Water Wall": 5,
+        "IfcWallType:Basic Wall:Exterior - Brick on Mtl. Stud": 3,
+        "IfcWallType:Basic Wall:Exterior - Metal Panel on Mtl. Stud double Exterior": 1,
+        "IfcWallType:Basic Wall:Exterior - Metal Panel on Mtl. Stud at Front Entry": 1
+      },
+      "property_sets": {
+        "Analytical Properties": 1578,
+        "Construction": 1578,
+        "Graphics": 1578,
+        "Identity Data": 1578,
+        "Materials and Finishes": 1578,
+        "Other": 1578,
+        "Constraints": 1578,
+        "Dimensions": 1578,
+        "Phasing": 1578,
+        "Pset_WallCommon": 1578,
+        "Structural": 1577
+      }
+    },
+    "IfcWallStandardCase": {
+      "count": 1392,
+      "predefined_types": {
+        "None": 1392
+      },
+      "object_types_top": {
+        "Basic Wall:Interior - 4 7/8\" Partition (1-hr):5673": 793,
+        "Basic Wall:Interior - 6 1/8\" Partition (2-hr):5674": 376,
+        "Basic Wall:Interior - CMU - 7 5/8\" - Partition:2515": 121,
+        "Basic Wall:Exterior - Metal Panel on 6\" Mtl Stud:4846": 39,
+        "Basic Wall:Interior - Donor Wall:4861": 20,
+        "Basic Wall:Exterior - Brick on Mtl. Stud w/ cap:2513": 19,
+        "Basic Wall:Exterior - Metal Panel on 3 5/8\" Mtl Stud:5176": 8,
+        "Basic Wall:Exterior - CMU - 7 5/8\":5206": 8,
+        "Basic Wall:Interior - Water Wall:5369": 5,
+        "Basic Wall:Exterior - Brick on Mtl. Stud:3965": 3
+      },
+      "distinct_object_types": 10,
+      "type_objects_top": {
+        "IfcWallType:Basic Wall:Interior - 4 7/8\" Partition (1-hr)": 793,
+        "IfcWallType:Basic Wall:Interior - 6 1/8\" Partition (2-hr)": 376,
+        "IfcWallType:Basic Wall:Interior - CMU - 7 5/8\" - Partition": 121,
+        "IfcWallType:Basic Wall:Exterior - Metal Panel on 6\" Mtl Stud": 39,
+        "IfcWallType:Basic Wall:Interior - Donor Wall": 20,
+        "IfcWallType:Basic Wall:Exterior - Brick on Mtl. Stud w/ cap": 19,
+        "IfcWallType:Basic Wall:Exterior - Metal Panel on 3 5/8\" Mtl Stud": 8,
+        "IfcWallType:Basic Wall:Exterior - CMU - 7 5/8\"": 8,
+        "IfcWallType:Basic Wall:Interior - Water Wall": 5,
+        "IfcWallType:Basic Wall:Exterior - Brick on Mtl. Stud": 3
+      },
+      "property_sets": {
+        "Analytical Properties": 1392,
+        "Construction": 1392,
+        "Graphics": 1392,
+        "Identity Data": 1392,
+        "Materials and Finishes": 1392,
+        "Other": 1392,
+        "Constraints": 1392,
+        "Dimensions": 1392,
+        "Phasing": 1392,
+        "Structural": 1392,
+        "Pset_WallCommon": 1392
+      }
+    },
+    "IfcSlab": {
+      "count": 24,
+      "predefined_types": {
+        "PredefinedType=ROOF": 24
+      },
+      "object_types_top": {
+        "Basic Roof:Grass Roof": 16,
+        "Basic Roof:Paver Roof:5187": 5,
+        "Basic Roof:Cold Roof - Concrete ": 2,
+        "Basic Roof:Ballasted": 1
+      },
+      "distinct_object_types": 4,
+      "type_objects_top": {
+        "None": 24
+      },
+      "property_sets": {
+        "Pset_SlabCommon": 24
+      }
+    },
+    "IfcSpace": {
+      "count": 187,
+      "predefined_types": {
+        "None": 187
+      },
+      "object_types_top": {
+        "None": 187
+      },
+      "distinct_object_types": 1,
+      "type_objects_top": {
+        "None": 187
+      },
+      "property_sets": {
+        "Pset_SpaceCommon": 187,
+        "Constraints": 187,
+        "Dimensions": 187,
+        "Energy Analysis": 187,
+        "Identity Data": 187,
+        "Other": 187,
+        "Phasing": 187
+      }
+    },
+    "IfcDoor": {
+      "count": 435,
+      "predefined_types": {
+        "None": 435
+      },
+      "object_types_top": {
+        "3'-0\"w x 6'-8\"h_Wood": 190,
+        "3'-0\"w x 7'-0\"h_Wood": 112,
+        "2'-8\"w x 7'-0\"h_Wood": 57,
+        "6'-0\"w x 7'-0\"h_Wood": 29,
+        "6'-0\"w x 6'-6\"h": 11,
+        "6'-0\"w x 7'-0\"h": 11,
+        "3'-0\"w x 6'-8\"h_Metal": 5,
+        "6'-0\"w x 7'-0\"h_Metal": 5,
+        "Store Front Double Door": 5,
+        "3'-0\"w x 7'-0\"h_Metal": 3,
+        "Curtain Wall Dbl Glass": 3,
+        "2400 x 3100mm": 2,
+        "5'-8\"w X 6'-8\"h": 1,
+        "5'-8\"w x 7'-0\"h": 1
+      },
+      "distinct_object_types": 14,
+      "type_objects_top": {
+        "IfcDoorStyle:3'-0\"w x 6'-8\"h_Wood": 190,
+        "IfcDoorStyle:3'-0\"w x 7'-0\"h_Wood": 112,
+        "IfcDoorStyle:2'-8\"w x 7'-0\"h_Wood": 57,
+        "IfcDoorStyle:6'-0\"w x 7'-0\"h_Wood": 29,
+        "IfcDoorStyle:6'-0\"w x 6'-6\"h": 11,
+        "IfcDoorStyle:6'-0\"w x 7'-0\"h": 11,
+        "IfcDoorStyle:3'-0\"w x 6'-8\"h_Metal": 5,
+        "IfcDoorStyle:6'-0\"w x 7'-0\"h_Metal": 5,
+        "IfcDoorStyle:Store Front Double Door": 5,
+        "IfcDoorStyle:3'-0\"w x 7'-0\"h_Metal": 3,
+        "IfcDoorStyle:Curtain Wall Dbl Glass": 3,
+        "IfcDoorStyle:2400 x 3100mm": 2,
+        "IfcDoorStyle:5'-8\"w X 6'-8\"h": 1,
+        "IfcDoorStyle:5'-8\"w x 7'-0\"h": 1
+      },
+      "property_sets": {
+        "Dimensions": 435,
+        "Identity Data": 435,
+        "Other": 435,
+        "Pset_DoorCommon": 435,
+        "Constraints": 435,
+        "Phasing": 435,
+        "Analytical Properties": 312,
+        "Construction": 312,
+        "Materials and Finishes": 310,
+        "Analytical Properties(Type)": 123,
+        "Construction(Type)": 123,
+        "Dimensions(Type)": 123,
+        "Identity Data(Type)": 123,
+        "Materials and Finishes(Type)": 123,
+        "Other(Type)": 123,
+        "Single-Flush:3'-0\"w x 6'-8\"h_Wood:188163": 82,
+        "Single-Flush:3'-0\"w x 7'-0\"h_Wood:197168": 54,
+        "Single-Flush:3'-0\"w x 7'-0\"h_Wood:197095": 47,
+        "Single-Flush:3'-0\"w x 6'-8\"h_Wood:188171": 44,
+        "Single-Flush:3'-0\"w x 6'-8\"h_Wood:188389": 41,
+        "Double-Flush:6'-0\"w x 7'-0\"h_Wood:197094": 25,
+        "Single-Flush:2'-8\"w x 7'-0\"h_Wood:188273": 23,
+        "Single-Flush:3'-0\"w x 6'-8\"h_Wood:192981": 18,
+        "Single-Flush:2'-8\"w x 7'-0\"h_Wood:188274": 15,
+        "Single-Flush:2'-8\"w x 7'-0\"h_Wood:192786": 11,
+        "Double-Panel:6'-0\"w x 6'-6\"h:188275": 9,
+        "Single-Flush:2'-8\"w x 7'-0\"h_Wood:192794": 8,
+        "Double-Flush-Dbl Acting:6'-0\"w x 7'-0\"h:197299": 6,
+        "Double-Flush-Dbl Acting:6'-0\"w x 7'-0\"h:197851": 5,
+        "Single-Flush:3'-0\"w x 7'-0\"h_Wood:197904": 5,
+        "Double-Flush:6'-0\"w x 7'-0\"h_Wood:197313": 4,
+        "Curtain_Wall_Automatic_Sliding_Door:Store Front Double Door:210032": 4,
+        "Single-Flush:3'-0\"w x 6'-8\"h_Wood:188321": 3,
+        "Single-Flush:3'-0\"w x 6'-8\"h_Metal:188322": 3,
+        "Single-Flush:3'-0\"w x 7'-0\"h_Wood:197902": 3,
+        "Single-Flush:3'-0\"w x 6'-8\"h_Wood:190409": 2,
+        "Double-Panel:6'-0\"w x 6'-6\"h:192945": 2,
+        "Overhead Door at Dock_Metric:2400 x 3100mm:197554": 2,
+        "Single-Flush:3'-0\"w x 6'-8\"h_Metal:197725": 2,
+        "Single-Flush:3'-0\"w x 7'-0\"h_Wood:197899": 2,
+        "Double-Flush:6'-0\"w x 7'-0\"h_Metal:198099": 2,
+        "Double-Flush:6'-0\"w x 7'-0\"h_Metal:209637": 2,
+        "Double-Flush-Dbl Acting:5'-8\"w X 6'-8\"h:196931": 1,
+        "Double-Panel:5'-8\"w x 7'-0\"h:197474": 1,
+        "Single-Flush:3'-0\"w x 7'-0\"h_Metal:197556": 1,
+        "Single-Flush:3'-0\"w x 7'-0\"h_Metal:197557": 1,
+        "Single-Flush:3'-0\"w x 7'-0\"h_Wood:197756": 1,
+        "Curtain Wall Dbl Glass:Curtain Wall Dbl Glass:340539": 1,
+        "Curtain Wall Dbl Glass:Curtain Wall Dbl Glass:344064": 1,
+        "Single-Flush:3'-0\"w x 7'-0\"h_Metal:208633": 1,
+        "Double-Flush:6'-0\"w x 7'-0\"h_Metal:209639": 1,
+        "Curtain Wall Dbl Glass:Curtain Wall Dbl Glass:210079": 1,
+        "Curtain_Wall_Automatic_Sliding_Door:Store Front Double Door:213474": 1
+      }
+    },
+    "IfcStair": {
+      "count": 60,
+      "predefined_types": {
+        "ShapeType=NOTDEFINED": 60
+      },
+      "object_types_top": {
+        "Stair:7\" max riser 11\" tread:4807": 52,
+        "Stair:7\" max riser 11\" tread - no stringer:4864": 8
+      },
+      "distinct_object_types": 2,
+      "type_objects_top": {
+        "None": 60
+      },
+      "property_sets": {
+        "Pset_StairCommon": 45,
+        "Constraints": 30,
+        "Dimensions": 30,
+        "Graphics": 30,
+        "Other": 30,
+        "Phasing": 30,
+        "Text": 30,
+        "Calculation Rules(Type)": 30,
+        "Construction(Type)": 30,
+        "Graphics(Type)": 30,
+        "Identity Data(Type)": 30,
+        "Materials and Finishes(Type)": 30,
+        "Other(Type)": 30,
+        "Risers(Type)": 30,
+        "Stringers(Type)": 30,
+        "Treads(Type)": 30
+      }
+    },
+    "IfcStairFlight": {
+      "count": 0,
+      "predefined_types": {},
+      "object_types_top": {},
+      "distinct_object_types": 0,
+      "type_objects_top": {},
+      "property_sets": {}
+    },
+    "IfcTransportElement": {
+      "count": 0,
+      "predefined_types": {},
+      "object_types_top": {},
+      "distinct_object_types": 0,
+      "type_objects_top": {},
+      "property_sets": {}
+    },
+    "IfcOpeningElement": {
+      "count": 766,
+      "predefined_types": {
+        "None": 766
+      },
+      "object_types_top": {
+        "Opening": 766
+      },
+      "distinct_object_types": 1,
+      "type_objects_top": {
+        "None": 766
+      },
+      "property_sets": {
+        "Other": 185,
+        "Constraints": 184,
+        "Phasing": 184,
+        "Dimensions": 103,
+        "Identity Data": 77,
+        "Construction": 74,
+        "Mechanical - Flow": 74,
+        "Horizontal Grid": 25,
+        "Structural": 25,
+        "Vertical Grid": 25
+      }
+    }
+  },
+  "lifts": {
+    "explicit_transport_elements": [],
+    "label_candidates": [
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHh_",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CabinFront_2-2:CabinFront:187651",
+        "object_type": "CabinFront",
+        "type_name": "CabinFront",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHhs",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CarDoor2L_2-4:CarDoor2L:187659",
+        "object_type": "CarDoor2L",
+        "type_name": "CarDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHhn",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CabinFront_2-3:CabinFront:187660",
+        "object_type": "CabinFront",
+        "type_name": "CabinFront",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHhm",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-4:LandingDoor2L:187661",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHhp",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-4:LandingDoor2L:187662",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 2",
+        "membership_path": [
+          "contained_in:IfcSpace:25",
+          "aggregated_by:IfcBuildingStorey:Level 2"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHho",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-4:LandingDoor2L:187663",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 3",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 3"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHhj",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-4:LandingDoor2L:187664",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 4",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 4"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHhi",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-4:LandingDoor2L:187665",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 5",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 5"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHha",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-6:LandingDoor2R:187673",
+        "object_type": "LandingDoor2R",
+        "type_name": "LandingDoor2R",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHhd",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-6:LandingDoor2R:187674",
+        "object_type": "LandingDoor2R",
+        "type_name": "LandingDoor2R",
+        "storey": "Level 2",
+        "membership_path": [
+          "contained_in:IfcSpace:25",
+          "aggregated_by:IfcBuildingStorey:Level 2"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHhc",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-6:LandingDoor2R:187675",
+        "object_type": "LandingDoor2R",
+        "type_name": "LandingDoor2R",
+        "storey": "Level 3",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 3"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHhX",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-6:LandingDoor2R:187676",
+        "object_type": "LandingDoor2R",
+        "type_name": "LandingDoor2R",
+        "storey": "Level 4",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 4"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHhW",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-6:LandingDoor2R:187677",
+        "object_type": "LandingDoor2R",
+        "type_name": "LandingDoor2R",
+        "storey": "Level 5",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 5"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHhZ",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CarDoor2L_2-6:CarDoor2R:187678",
+        "object_type": "CarDoor2R",
+        "type_name": "CarDoor2R",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHg$",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CabinFront_2-4:CabinFront:187714",
+        "object_type": "CabinFront",
+        "type_name": "CabinFront",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgs",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-7:LandingDoor2R:187723",
+        "object_type": "LandingDoor2R",
+        "type_name": "LandingDoor2R",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgn",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-7:LandingDoor2R:187724",
+        "object_type": "LandingDoor2R",
+        "type_name": "LandingDoor2R",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgm",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-7:LandingDoor2R:187725",
+        "object_type": "LandingDoor2R",
+        "type_name": "LandingDoor2R",
+        "storey": "Level 3",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 3"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgp",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-7:LandingDoor2R:187726",
+        "object_type": "LandingDoor2R",
+        "type_name": "LandingDoor2R",
+        "storey": "Level 4",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 4"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgo",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-7:LandingDoor2R:187727",
+        "object_type": "LandingDoor2R",
+        "type_name": "LandingDoor2R",
+        "storey": "Level 5",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 5"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgj",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-7:LandingDoor2R:187728",
+        "object_type": "LandingDoor2R",
+        "type_name": "LandingDoor2R",
+        "storey": "Level 6",
+        "membership_path": [
+          "contained_in:IfcSpace:205",
+          "aggregated_by:IfcBuildingStorey:Level 6"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgi",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-7:LandingDoor2R:187729",
+        "object_type": "LandingDoor2R",
+        "type_name": "LandingDoor2R",
+        "storey": "Level 7A",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 7A"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgl",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CarDoor2L_2-7:CarDoor2R:187730",
+        "object_type": "CarDoor2R",
+        "type_name": "CarDoor2R",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgk",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CabinFront_2-5:CabinFront:187731",
+        "object_type": "CabinFront",
+        "type_name": "CabinFront",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgX",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-5:LandingDoor2L:187740",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgW",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-5:LandingDoor2L:187741",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgZ",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-5:LandingDoor2L:187742",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 3",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 3"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgY",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-5:LandingDoor2L:187743",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 4",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 4"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgT",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-5:LandingDoor2L:187744",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 5",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 5"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgS",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-5:LandingDoor2L:187745",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 6",
+        "membership_path": [
+          "contained_in:IfcSpace:205",
+          "aggregated_by:IfcBuildingStorey:Level 6"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgV",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-5:LandingDoor2L:187746",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 7A",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 7A"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHgU",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CarDoor2L_2-5:CarDoor2L:187747",
+        "object_type": "CarDoor2L",
+        "type_name": "CarDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfw",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CabinFront_2-6:CabinFront:187783",
+        "object_type": "CabinFront",
+        "type_name": "CabinFront",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfj",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CabinFront_2-7:CabinFront:187792",
+        "object_type": "CabinFront",
+        "type_name": "CabinFront",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfa",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-1:LandingDoor2L:187801",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfd",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-1:LandingDoor2L:187802",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfc",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-1:LandingDoor2L:187803",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 3",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 3"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfX",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-1:LandingDoor2L:187804",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 4",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 4"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfW",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-1:LandingDoor2L:187805",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 5",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 5"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfZ",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CarDoor2L_2-1:CarDoor2L:187806",
+        "object_type": "CarDoor2L",
+        "type_name": "CarDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfY",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CarDoor2L_2-2:CarDoor2L:187807",
+        "object_type": "CarDoor2L",
+        "type_name": "CarDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfT",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CabinFront_2-1:CabinFront:187808",
+        "object_type": "CabinFront",
+        "type_name": "CabinFront",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfS",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-2:LandingDoor2L:187809",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfV",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-2:LandingDoor2L:187810",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfU",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-2:LandingDoor2L:187811",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 3",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 3"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfP",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-2:LandingDoor2L:187812",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 4",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 4"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfO",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-2:LandingDoor2L:187813",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 5",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 5"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfJ",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-3:LandingDoor2L:187822",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfI",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-3:LandingDoor2L:187823",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfD",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-3:LandingDoor2L:187824",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 3",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 3"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfC",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-3:LandingDoor2L:187825",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 4",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 4"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfF",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-3:LandingDoor2L:187826",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 5",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 5"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qHfE",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CarDoor2L_2-3:CarDoor2L:187827",
+        "object_type": "CarDoor2L",
+        "type_name": "CarDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qCDa",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CabinFront_2-6:CabinFront:197785",
+        "object_type": "CabinFront",
+        "type_name": "CabinFront",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qCDd",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-3:LandingDoor2L:197786",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qCDc",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CarDoor2L_2-3:CarDoor2L:197787",
+        "object_type": "CarDoor2L",
+        "type_name": "CarDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qCDW",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CabinFront_2-6:CabinFront:197789",
+        "object_type": "CabinFront",
+        "type_name": "CabinFront",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qCDZ",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-3:LandingDoor2L:197790",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qCDY",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CarDoor2L_2-3:CarDoor2L:197791",
+        "object_type": "CarDoor2L",
+        "type_name": "CarDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qCDS",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-3:LandingDoor2L:197793",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qCDV",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CarDoor2L_2-3:CarDoor2L:197794",
+        "object_type": "CarDoor2L",
+        "type_name": "CarDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qCDP",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_LandingDoor2L_2-3:LandingDoor2L:197796",
+        "object_type": "LandingDoor2L",
+        "type_name": "LandingDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKMZR0qCDO",
+        "entity": "IfcBuildingElementProxy",
+        "name": "Elevator_CarDoor2L_2-3:CarDoor2L:197797",
+        "object_type": "CarDoor2L",
+        "type_name": "CarDoor2L",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKKZV0qHgy",
+        "entity": "IfcColumn",
+        "name": "ElevatorCoordinateSystem_2:18\" x 24\":187713",
+        "object_type": "18\" x 24\"",
+        "type_name": "18\" x 24\"",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKKZ70qHgy",
+        "entity": "IfcColumn",
+        "name": "ElevatorCoordinateSystem_2:18\" x 24\":187713",
+        "object_type": "18\" x 24\"",
+        "type_name": "18\" x 24\"",
+        "storey": "Level 7A",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 7A"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKKZV0qHfx",
+        "entity": "IfcColumn",
+        "name": "ElevatorCoordinateSystem_1:18\" x 24\":187782",
+        "object_type": "18\" x 24\"",
+        "type_name": "18\" x 24\"",
+        "storey": "Level 1",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 1"
+        ]
+      },
+      {
+        "global_id": "1IjDNnD1b6tenKKZF0qHfx",
+        "entity": "IfcColumn",
+        "name": "ElevatorCoordinateSystem_1:18\" x 24\":187782",
+        "object_type": "18\" x 24\"",
+        "type_name": "18\" x 24\"",
+        "storey": "Level 5",
+        "membership_path": [
+          "contained_in:IfcBuildingStorey:Level 5"
+        ]
+      }
+    ],
+    "label_candidates_by_object_type": {
+      "LandingDoor2L": 31,
+      "LandingDoor2R": 12,
+      "CabinFront": 9,
+      "CarDoor2L": 9,
+      "18\" x 24\"": 4,
+      "CarDoor2R": 2
+    },
+    "note": "Label candidates are matched on name text only and are not confirmed lifts."
+  },
+  "ifc_path": "/Users/blossomtang/Documents/Productive Experiments/bim-extraction/data/20210219Architecture.ifc",
+  "selection": {
+    "requested_name": "Level 1",
+    "requested_id": null,
+    "selected_global_id": "248gkaFu11TgGGHnDbO3GV"
+  }
+}
