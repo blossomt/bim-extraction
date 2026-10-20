@@ -27,3 +27,21 @@ LIFT_LABEL_KEYWORDS = ["elevator", "lift"]
 
 # Number of distinct labels (ObjectType, type names) listed per category in the inventory.
 LABEL_SUMMARY_TOP_N = 15
+
+# Fixed obstacles subtracted from the walkable area in addition to walls (reviewed decision).
+OBSTACLE_CATEGORIES = ["IfcCurtainWall", "IfcColumn"]
+
+# Label-only lift parts. Only names matching LIFT_ACCESS_NAME_PATTERN may become lift access points.
+LIFT_ACCESS_NAME_PATTERN = r"^Elevator_LandingDoor"
+LIFT_ROLE_PATTERNS = {"landing_door": r"landing_?door", "car_door": r"car_?door", "cabin": r"cabin"}
+
+# Standard Pset_* sets are always kept; these vendor (Revit) sets are kept in addition, per category.
+EXTRA_PSETS = {
+    "IfcWall": ["Constraints"],
+    "IfcDoor": ["Dimensions", "Constraints"],
+    "IfcSpace": ["Dimensions", "Identity Data"],
+    "IfcStair": ["Constraints"],
+}
+
+# Elements whose placement Z lies outside [elevation - tol, next storey elevation - tol) are flagged (report only).
+PLACEMENT_Z_TOLERANCE_M = 0.5

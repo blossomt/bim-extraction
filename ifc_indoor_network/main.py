@@ -1,6 +1,7 @@
 """IFC indoor walking network prototype - command-line entry point.
 
 Phase 1: model inspection, storey inventory and storey selection.
+Phase 2: semantic element extraction for the selected storey.
 """
 
 from __future__ import annotations
@@ -86,6 +87,47 @@ def print_selected(storey: ifc_reader.StoreyInfo, inv: dict) -> None:
     print(f"  Lift label candidates on this storey: {len(lift_cands)}")
 
 
+INVENTORY_CATEGORY_FOR = {
+    "walls": "IfcWall",
+    "slabs": "IfcSlab",
+    "spaces": "IfcSpace",
+    "doors": "IfcDoor",
+    "openings": "IfcOpeningElement",
+    "stairs": "IfcStair",
+    "stair_flights": "IfcStairFlight",
+}
+
+
+def print_extraction(extracted: dict, inv: dict) -> list[str]:
+    """Print the extraction summary; return count mismatches against the Phase 1 inventory."""
+    s = extracted["summary"]
+    print("\nExtracted records (semantics only, no geometry):")
+    for name, n in s["counts"].items():
+        print(f"  {name:<14} {n:>5}")
+    print(f"  Walls by classification: {s['walls_by_classification']}")
+    print(f"  Doors by host relationship: {s['doors_by_host_status']}")
+    if s["doors_host_on_other_storey"]:
+        print(f"  Doors whose host wall is on another storey: {len(s['doors_host_on_other_storey'])}")
+    print(f"  Openings by filling: {s['openings_by_filling']}")
+    print(f"  Slab floor candidates: {s['slab_floor_candidates']} of {s['counts']['slabs']}")
+    print(f"  Stairs: {s['stairs_top_level']} top-level of {s['counts']['stairs']}")
+    print(f"  Lifts: {s['lifts_explicit']} explicit IfcTransportElement; label-only by role {s['lifts_label_only_by_role']}; "
+          f"{s['lift_access_point_candidates']} access-point candidates (label-only)")
+    lo, hi = s["placement_z_window_m"]
+    print(f"  Placement Z outside storey window [{_fmt(lo)}, {_fmt(hi)}) m (report only, no reassignment):")
+    for cat, items in s["placement_z_outside_storey"].items():
+        print(f"    {cat:<14} {len(items):>4}  e.g. {items[0]['name']!r} at Z {items[0]['placement_z_m']} m")
+
+    storey_counts = next(st["element_counts"] for st in inv["storeys"] if st["global_id"] == extracted["storey"]["global_id"])
+    mismatches = []
+    for name, ifc_cat in INVENTORY_CATEGORY_FOR.items():
+        expected = sum(storey_counts.get(ifc_cat, {}).values())
+        if expected != s["counts"][name]:
+            mismatches.append(f"{name}: extracted {s['counts'][name]} vs inventory {expected}")
+    print("  Cross-check vs inventory: " + ("OK" if not mismatches else "MISMATCH " + "; ".join(mismatches)))
+    return mismatches
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     t0 = time.time()
@@ -96,7 +138,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     print(f"Loaded {args.ifc} in {time.time() - t0:.1f}s")
 
-    inv, _membership = ifc_reader.build_inventory(
+    inv, membership = ifc_reader.build_inventory(
         model, config.INVENTORY_CATEGORIES, config.LIFT_LABEL_KEYWORDS, config.LABEL_SUMMARY_TOP_N
     )
     inv["ifc_path"] = str(args.ifc)
@@ -117,7 +159,12 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print_selected(selected, inv)
             inv["selection"] = {"requested_name": args.storey, "requested_id": args.storey_id, "selected_global_id": selected.global_id}
-            print("\nPhase 1 only: geometry extraction and network generation are not implemented yet.")
+            extracted = ifc_reader.extract_storey_elements(model, membership, selected, storeys, config)
+            extracted["summary"]["inventory_mismatches"] = print_extraction(extracted, inv)
+            elements_path = args.output_dir / "elements.json"
+            elements_path.write_text(json.dumps(extracted, indent=2, default=str))
+            print(f"Elements written to {elements_path}")
+            print("\nPhases 1-2 only: geometry extraction and network generation are not implemented yet.")
 
     out_path.write_text(json.dumps(inv, indent=2, default=str))
     print(f"\nInventory written to {out_path}  ({time.time() - t0:.1f}s total)")

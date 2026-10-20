@@ -411,3 +411,244 @@ def build_inventory(model: ifcopenshell.file, categories: list[str], lift_keywor
         "labels": {c: summarise_labels(model, c, top_n) for c in categories},
         "lifts": find_lift_candidates(model, membership, lift_keywords),
     }, membership
+
+
+# --- Phase 2: semantic extraction for one storey -------------------------------------------
+
+
+def _predefined_value(element):
+    for attr in ("PredefinedType", "OperationType", "ShapeType"):
+        if hasattr(element, attr):
+            value = getattr(element, attr)
+            return str(value) if value is not None else None
+    return None
+
+
+def _selected_psets(element, extra: list[str]) -> dict:
+    return {
+        name: {k: v for k, v in props.items() if k != "id"}
+        for name, props in ue.get_psets(element).items()
+        if name.startswith("Pset_") or name in extra
+    }
+
+
+def _placement_z_m(element, scale: float) -> float | None:
+    if getattr(element, "ObjectPlacement", None) is None:
+        return None
+    return float(up.get_local_placement(element.ObjectPlacement)[2][3]) * scale
+
+
+def _ref(entity) -> dict | None:
+    if entity is None:
+        return None
+    return {"global_id": entity.GlobalId, "entity": entity.is_a(), "name": getattr(entity, "Name", None)}
+
+
+def _base_record(element, m: Membership, scale: float, extra_psets: list[str]) -> dict:
+    t = ue.get_type(element)
+    parent = ue.get_aggregate(element)
+    return {
+        "global_id": element.GlobalId,
+        "entity": element.is_a(),
+        "name": element.Name,
+        "object_type": getattr(element, "ObjectType", None),
+        "predefined_type": _predefined_value(element),
+        "type_object": _ref(t),
+        "storey_global_id": m.storey_global_id,
+        "storey_name": m.storey_name,
+        "membership_path": m.path,
+        "referenced_storeys": m.referenced_storeys,
+        "aggregated_in": _ref(parent) if parent is not None and not parent.is_a("IfcSpatialStructureElement") else None,
+        "placement_z_m": _placement_z_m(element, scale),
+        "psets": _selected_psets(element, extra_psets),
+    }
+
+
+def _wall_record(wall, base: dict) -> dict:
+    is_external = ue.get_pset(wall, "Pset_WallCommon", "IsExternal")
+    classification = {True: "external", False: "internal"}.get(is_external, "unknown")
+    openings = []
+    for rel in wall.HasOpenings or ():
+        opening = rel.RelatedOpeningElement
+        openings.append(
+            {
+                "opening_global_id": opening.GlobalId,
+                "filled_by": [_ref(r.RelatedBuildingElement) for r in opening.HasFillings or ()],
+            }
+        )
+    constraints = base["psets"].get("Constraints", {})
+    return {
+        **base,
+        "classification": classification,
+        "classification_source": "Pset_WallCommon.IsExternal" if is_external is not None else None,
+        "openings": openings,
+        "vendor_span_hint": {  # Revit properties; informational only, never used for membership
+            "base_constraint": constraints.get("Base Constraint"),
+            "top_constraint": constraints.get("Top Constraint"),
+        },
+    }
+
+
+def _filling_kind(opening) -> str:
+    fillings = [r.RelatedBuildingElement for r in opening.HasFillings or ()]
+    if not fillings:
+        return "unfilled"
+    if any(f.is_a("IfcDoor") for f in fillings):
+        return "door"
+    if any(f.is_a("IfcWindow") for f in fillings):
+        return "window"
+    return "other"
+
+
+def _opening_record(opening, base: dict) -> dict:
+    hosts = [r.RelatingBuildingElement for r in opening.VoidsElements or ()]
+    return {
+        **base,
+        "host": _ref(hosts[0]) if hosts else None,
+        "filling_kind": _filling_kind(opening),
+        "filled_by": [_ref(r.RelatedBuildingElement) for r in opening.HasFillings or ()],
+    }
+
+
+def _door_record(door, base: dict, scale: float, membership: dict[str, Membership]) -> dict:
+    opening = host = None
+    for rel in door.FillsVoids or ():
+        opening = rel.RelatingOpeningElement
+        hosts = [r.RelatingBuildingElement for r in opening.VoidsElements or ()]
+        host = hosts[0] if hosts else None
+    if opening is None:
+        status = "no_fills_relationship"
+    elif host is None:
+        status = "opening_without_host"
+    else:
+        status = "opening_and_host"
+    host_m = membership.get(host.GlobalId) if host is not None else None
+    width, height = getattr(door, "OverallWidth", None), getattr(door, "OverallHeight", None)
+    return {
+        **base,
+        "overall_width_m": width * scale if width is not None else None,
+        "overall_height_m": height * scale if height is not None else None,
+        "opening": _ref(opening),
+        "host_element": _ref(host),
+        "host_storey_name": host_m.storey_name if host_m else None,
+        "host_relationship_status": status,
+    }
+
+
+def _space_record(space, base: dict) -> dict:
+    return {
+        **base,
+        "long_name": space.LongName,
+        "interior_or_exterior": str(getattr(space, "InteriorOrExteriorSpace", None)),
+    }
+
+
+def _slab_record(base: dict) -> dict:
+    return {**base, "is_floor_candidate": base["predefined_type"] in ("FLOOR", "BASESLAB")}
+
+
+def _stair_record(stair, base: dict) -> dict:
+    parent = ue.get_aggregate(stair)
+    return {
+        **base,
+        "parent_stair": _ref(parent) if parent is not None and parent.is_a("IfcStair") else None,
+        "sub_elements": [_ref(c) for rel in stair.IsDecomposedBy or () for c in rel.RelatedObjects],
+    }
+
+
+def _lift_record(element, base: dict, role_patterns: dict[str, str], access_pattern: str) -> dict:
+    explicit = element.is_a("IfcTransportElement")
+    labels = " ".join(filter(None, [element.Name, getattr(element, "ObjectType", None)]))
+    role = next((r for r, p in role_patterns.items() if re.search(p, labels, re.IGNORECASE)), "other")
+    is_access = bool(element.Name and re.search(access_pattern, element.Name, re.IGNORECASE))
+    return {
+        **base,
+        "identification": "explicit_ifc" if explicit else "label_only",
+        "transport_kind": _transport_kind(element) if explicit else None,
+        "role": role,
+        "is_access_point_candidate": is_access,
+        "access_rule": f"Name matches {access_pattern!r}" if is_access else None,
+    }
+
+
+def _flag_placement(records: list[dict], z_min: float, z_max: float | None) -> list[dict]:
+    flagged = []
+    for r in records:
+        z = r["placement_z_m"]
+        outside = z is not None and (z < z_min or (z_max is not None and z >= z_max))
+        r["placement_z_outside_storey"] = outside
+        if outside:
+            flagged.append({"global_id": r["global_id"], "entity": r["entity"], "name": r["name"], "placement_z_m": round(z, 3)})
+    return flagged
+
+
+def extract_storey_elements(
+    model: ifcopenshell.file,
+    membership: dict[str, Membership],
+    storey: StoreyInfo,
+    storeys: list[StoreyInfo],
+    cfg,
+) -> dict:
+    """Semantic records (no geometry) for elements whose storey membership is the selected storey."""
+    scale = uu.calculate_unit_scale(model, "LENGTHUNIT")
+    on_storey = {gid for gid, m in membership.items() if m.storey_global_id == storey.global_id}
+
+    def elements(entity: str):
+        try:
+            found = model.by_type(entity)
+        except RuntimeError:
+            return []
+        return [e for e in found if e.GlobalId in on_storey]
+
+    def base(e, category):
+        return _base_record(e, membership[e.GlobalId], scale, cfg.EXTRA_PSETS.get(category, []))
+
+    cats: dict[str, list[dict]] = {
+        "walls": [_wall_record(w, base(w, "IfcWall")) for w in elements("IfcWall")],
+        "slabs": [_slab_record(base(s, "IfcSlab")) for s in elements("IfcSlab")],
+        "spaces": [_space_record(s, base(s, "IfcSpace")) for s in elements("IfcSpace")],
+        "doors": [_door_record(d, base(d, "IfcDoor"), scale, membership) for d in elements("IfcDoor")],
+        "openings": [_opening_record(o, base(o, "IfcOpeningElement")) for o in elements("IfcOpeningElement")],
+        "stairs": [_stair_record(s, base(s, "IfcStair")) for s in elements("IfcStair")],
+        "stair_flights": [base(s, "IfcStairFlight") for s in elements("IfcStairFlight")],
+        "obstacles": [
+            {**base(e, c), "obstacle_category": c} for c in cfg.OBSTACLE_CATEGORIES for e in elements(c)
+        ],
+    }
+
+    lift_elements = {e.GlobalId: e for e in elements("IfcTransportElement")}
+    keyword_re = re.compile(r"\b(" + "|".join(re.escape(k) for k in cfg.LIFT_LABEL_KEYWORDS) + r")", re.IGNORECASE)
+    for e in elements("IfcElement"):
+        t = ue.get_type(e)
+        labels = [e.Name, getattr(e, "ObjectType", None), t.Name if t is not None else None]
+        if any(lbl and keyword_re.search(lbl) for lbl in labels):
+            lift_elements.setdefault(e.GlobalId, e)
+    cats["lifts"] = [
+        _lift_record(e, base(e, "lift"), cfg.LIFT_ROLE_PATTERNS, cfg.LIFT_ACCESS_NAME_PATTERN)
+        for e in lift_elements.values()
+    ]
+
+    idx = storeys.index(storey)
+    next_storey = storeys[idx + 1] if idx + 1 < len(storeys) else None
+    z_min = (storey.elevation_m or 0.0) - cfg.PLACEMENT_Z_TOLERANCE_M
+    z_max = next_storey.elevation_m - cfg.PLACEMENT_Z_TOLERANCE_M if next_storey else None
+    placement_flags = {name: _flag_placement(recs, z_min, z_max) for name, recs in cats.items()}
+
+    doors, walls, lifts = cats["doors"], cats["walls"], cats["lifts"]
+    summary = {
+        "counts": {name: len(recs) for name, recs in cats.items()},
+        "walls_by_classification": dict(Counter(w["classification"] for w in walls)),
+        "doors_by_host_status": dict(Counter(d["host_relationship_status"] for d in doors)),
+        "doors_host_on_other_storey": [
+            d["global_id"] for d in doors if d["host_storey_name"] not in (None, storey.name)
+        ],
+        "openings_by_filling": dict(Counter(o["filling_kind"] for o in cats["openings"])),
+        "slab_floor_candidates": sum(s["is_floor_candidate"] for s in cats["slabs"]),
+        "stairs_top_level": sum(1 for s in cats["stairs"] if s["parent_stair"] is None),
+        "lifts_explicit": sum(1 for r in lifts if r["identification"] == "explicit_ifc"),
+        "lifts_label_only_by_role": dict(Counter(r["role"] for r in lifts if r["identification"] == "label_only")),
+        "lift_access_point_candidates": sum(r["is_access_point_candidate"] for r in lifts),
+        "placement_z_window_m": [z_min, z_max],
+        "placement_z_outside_storey": {k: v for k, v in placement_flags.items() if v},
+    }
+    return {"storey": asdict(storey), "summary": summary, "elements": cats}

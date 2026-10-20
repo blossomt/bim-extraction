@@ -32,6 +32,10 @@ Default target storey: **Level 1** (95 spaces, 120 doors, 38 lift label candidat
 3. **Wall 2D method**: opening-aware version = horizontal section of wall geometry at a configurable walking height (storey elevation + 1.0 m), only door-filled openings may open walls; naive version = full XY footprint projection. Validate in Phase 3.
 4. **Version control**: git repository; commit at the end of each phase. Large IFC data and generated outputs are git-ignored.
 
+## Open question (raised after Phase 2)
+
+5. **Misplaced landing doors**: 7 of Level 1's 16 `Elevator_LandingDoor*` proxies are placed at Z ≈ 6.0 m (Level 2 height) although contained in Level 1. Proposal for Phase 6: keep them listed and flagged, but do **not** connect them to the Level 1 network (status `excluded_placement_inconsistent`). This excludes; it never reassigns.
+
 ## Phases
 
 Each phase ends with runnable code, tests passing, and an inspected output. Do not start a phase until its dependencies are validated.
@@ -41,7 +45,7 @@ Each phase ends with runnable code, tests passing, and an inspected output. Do n
 - **Validation**: unit tests (synthetic IFC4 model) + integration test on the sample; CLI error paths (no match, ambiguous, bad path).
 - **Done when**: schema, units, buildings, storeys (name/GlobalId/elevation), category counts per storey, membership paths, unassigned elements, label/pset summaries and lift candidates are printed and written to JSON; storey selection works by exact / case-insensitive name or GlobalId with helpful errors.
 
-### Phase 2 — Semantic element extraction for the selected storey
+### Phase 2 — Semantic element extraction for the selected storey ✅
 - **Depends on**: Phase 1.
 - **Deliverables**: `ifc_reader.py` extraction functions returning plain records (no geometry) for walls (IsExternal → internal/external/unknown), slabs (with predefined type), spaces, doors (opening + host wall via `IfcRelFillsElement`/`IfcRelVoidsElement`), lifts (explicit + label candidates, flagged), stairs (parent/child), candidate obstacles; relevant psets; membership path per element. Written to `output/elements.json`.
 - **Validation**: counts match Phase 1 per-storey counts; doors without relationships listed; tests on synthetic model.
