@@ -92,7 +92,7 @@ Each phase ends with runnable code, tests passing, and an inspected output. Do n
 - **Deliverables**: `diagnostics.py` console + `output/diagnostics.json` covering SPEC §9 (incl. unconnected doors, centreline components without doors, disconnected walkable areas).
 - **Done when**: every SPEC §9 item is present or explicitly marked unavailable with reason.
 
-### Phase 9 — Optional Plotly 3D view
+### Phase 9 — Optional Plotly 3D view ✅
 - **Depends on**: Phase 3 (+ 5 for centreline). Only if effort is reasonable.
 - **Deliverables**: `output/floor_plan_3d.html` with filterable element types.
 

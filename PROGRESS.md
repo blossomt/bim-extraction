@@ -1,8 +1,14 @@
 # PROGRESS
 
-**Current phase:** Phase 6 complete; Phase 9 (3D view) in progress (Phases 7–8 skipped for now at user request).
+**Current phase:** Phase 9 complete (Phases 7–8 skipped for now at user request) — awaiting review.
 
 ## Completed
+
+### Phase 9 — Optional Plotly 3D view (2026-10-21)
+- `geometry_processing.collect_display_meshes()`: re-meshes the selected categories with **opening subtraction enabled** (walls show door/window holes); elements without own geometry (curtain walls, parent stairs) are drawn from their decomposition parts, de-duplicated by GlobalId.
+- `visualisation.build_3d_view()`: one Plotly `Mesh3d` per category (walls, columns, curtain walls, doors, stairs, lift parts, spaces hidden by default) with per-element hover (entity, name, GlobalId, parent); walkable room/corridor regions triangulated with `shapely.constrained_delaunay_triangles` at floor level; corridor centreline, room spokes, corridor snaps, room/doorway/lift nodes as `Scatter3d`. Equal-axis scaling (`aspectmode=data`), labelled as synthetic local frame. Legend toggles = element-type filter; `config.PLOT3D_CATEGORIES` / `PLOT3D_HIDDEN`; `--no-3d` skips it.
+- Level 1: `output/floor_plan_3d.html`, ~8 s, 13.6 MB (Plotly JS from CDN). Meshes: 278 walls, 675 curtain-wall parts, 93 columns, 114 doors (6 curtain-wall doors drawn as curtain-wall parts), 21 stair parts, 36 lift parts, 95 spaces.
+- Visible in 3D: a multi-storey glazed curtain wall contained in Level 1 (shown as modelled).
 
 ### Phase 6 — Door and lift connectors (2026-10-21)
 - `network_generation.build_connectors()`: for each open doorway, one edge per adjacent region — `room_spoke` (doorway → room centre node) or `corridor_snap` (doorway → nearest point on that corridor's centreline, `shapely.ops.nearest_points`). Per connector: distance, snap limit, status (`ok` / `too_long` / `no_centreline`), length crossing non-walkable area. Per door: access point (doorway centroid), adjustment from the door footprint centre, in-walkable flag, overall status (`connected`, `connected_one_side`, `partial`, `unconnected`, `blocked_doorway`, `no_adjacent_region`).
@@ -56,7 +62,7 @@
 - [ifc_indoor_network/main.py](ifc_indoor_network/main.py): CLI `--ifc --storey --storey-id --list-storeys --output-dir`; writes `output/inventory.json`. Exit code 2 on bad path / failed selection.
 
 ## Tests
-- `cd ifc_indoor_network && ../.venv/bin/python -m pytest -q` → **35 passed** (~17 s; includes sample-file integration tests, skipped if file absent).
+- `cd ifc_indoor_network && ../.venv/bin/python -m pytest -q` → **36 passed** (~19 s; includes sample-file integration tests, skipped if file absent).
 - Manual: `main.py` (Level 1) exit 0; `--storey "Level 9"` exit 2 listing storeys; `--storey "level 7a"` selects Level 7A (not Level 7); bad `--ifc` path exit 2.
 
 ## Known issues / data-quality findings
@@ -86,4 +92,5 @@
 - Reviewed after Phase 1: see "Decisions" in [PLAN.md](PLAN.md) (landing-door proxies as flagged lift access; curtain walls + columns as obstacles; wall section at walking height; git commit per phase).
 
 ## Next steps
-1. Phase 9: optional Plotly 3D view (user request), then Phases 7–8 (map polish, diagnostics report) and 10 (README).
+1. Phase 7: 2D map polish (legend, popups with properties, summary panel). Phase 8: consolidated `diagnostics.json` + console report. Phase 10: README and acceptance review.
+2. Possible 3D improvement: reduce HTML size (13.6 MB) by dropping per-vertex hover text or decimating curtain-wall parts.

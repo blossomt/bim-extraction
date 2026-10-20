@@ -20,19 +20,20 @@ from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 FOOTPRINT_CATEGORIES = ["slabs", "spaces", "walls", "obstacles", "openings", "doors", "stairs", "stair_flights", "lifts"]
 
 
-def mesh_settings() -> ifcopenshell.geom.settings:
+def mesh_settings(subtract_openings: bool = False) -> ifcopenshell.geom.settings:
     s = ifcopenshell.geom.settings()
     s.set("use-world-coords", True)
-    s.set("disable-opening-subtractions", True)
+    s.set("disable-opening-subtractions", not subtract_openings)
     return s
 
 
-def iterate_meshes(model: ifcopenshell.file, elements: list, num_threads: int) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+def iterate_meshes(model: ifcopenshell.file, elements: list, num_threads: int,
+                   subtract_openings: bool = False) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     """{GlobalId: (verts (n,3) metres, faces (m,3))}. Elements without output are simply absent."""
     meshes: dict = {}
     if not elements:
         return meshes
-    it = ifcopenshell.geom.iterator(mesh_settings(), model, num_threads, include=elements)
+    it = ifcopenshell.geom.iterator(mesh_settings(subtract_openings), model, num_threads, include=elements)
     if not it.initialize():
         return meshes
     while True:
@@ -211,6 +212,34 @@ def extract_geometry(model: ifcopenshell.file, extracted: dict, storey_elevation
         "bounds_xy_m": list(bounds) if bounds else None,
     }
     return {"frames": frames, "summary": summary}
+
+
+def collect_display_meshes(model: ifcopenshell.file, extracted: dict, categories: list[str], cfg) -> dict:
+    """3D display meshes (openings subtracted) per category; elements without own geometry use their parts."""
+    items = []  # (category, record, element)
+    for category in categories:
+        for rec in extracted["elements"].get(category, []):
+            items.append((category, rec, model.by_guid(rec["global_id"])))
+    parts_of = {rec["global_id"]: [p for rel in e.IsDecomposedBy or () for p in rel.RelatedObjects] for _, rec, e in items}
+    to_mesh = [e for _, _, e in items] + [p for parts in parts_of.values() for p in parts]
+    meshes = iterate_meshes(model, to_mesh, cfg.GEOMETRY_THREADS, subtract_openings=True)
+
+    out: dict[str, list] = {}
+    drawn: set[str] = set()
+    for category, rec, e in items:
+        gid = rec["global_id"]
+        group = rec["entity"] if category == "obstacles" else category
+        sources = [(gid, e)] if gid in meshes else [(p.GlobalId, p) for p in parts_of[gid] if p.GlobalId in meshes]
+        for sgid, src in sources:
+            if sgid in drawn:
+                continue
+            drawn.add(sgid)
+            verts, faces = meshes[sgid]
+            out.setdefault(group, []).append({
+                "global_id": sgid, "name": getattr(src, "Name", None), "entity": src.is_a(),
+                "parent_global_id": gid if sgid != gid else None, "verts": verts, "faces": faces,
+            })
+    return out
 
 
 # --- Phase 4: floor footprint and walkable polygons ----------------------------------------

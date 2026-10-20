@@ -1,4 +1,4 @@
-"""Folium map in a synthetic local frame (Leaflet CRS.Simple): IFC world XY metres, no basemap."""
+"""Folium 2D map (Leaflet CRS.Simple, IFC world XY metres, no basemap) and optional Plotly 3D view."""
 
 from __future__ import annotations
 
@@ -6,6 +6,9 @@ import html
 from pathlib import Path
 
 import folium
+import numpy as np
+import plotly.graph_objects as go
+import shapely
 
 SYNTHETIC_NOTE = (
     "Synthetic local coordinates: IFC world X/Y in metres displayed on a flat canvas. "
@@ -156,4 +159,107 @@ def build_floor_map(frames: dict, storey_name: str, bounds_xy: list[float] | Non
     m.get_root().html.add_child(folium.Element(panel))
     out_path.parent.mkdir(parents=True, exist_ok=True)
     m.save(str(out_path))
+    return out_path
+
+
+# --- Optional Plotly 3D view -----------------------------------------------------------------
+
+MESH_STYLE = {  # group -> (colour, opacity)
+    "walls": ("#b0b0b0", 1.0),
+    "IfcColumn": ("#8c564b", 1.0),
+    "IfcCurtainWall": ("#9ecae1", 0.35),
+    "doors": ("#d62728", 1.0),
+    "stairs": ("#9467bd", 1.0),
+    "lifts": ("#ff7f0e", 1.0),
+    "spaces": ("#ffe08a", 0.25),
+}
+
+
+def _mesh_trace(group: str, items: list[dict], visible) -> go.Mesh3d:
+    verts, faces, text, offset = [], [], [], 0
+    for it in items:
+        v, f = it["verts"], it["faces"]
+        verts.append(v)
+        faces.append(f + offset)
+        label = f"{it['entity']}: {(it['name'] or '')[:50]}<br>{it['global_id']}"
+        if it["parent_global_id"]:
+            label += f"<br>part of {it['parent_global_id']}"
+        text.extend([label] * len(v))
+        offset += len(v)
+    v, f = np.vstack(verts), np.vstack(faces)
+    colour, opacity = MESH_STYLE.get(group, ("#7f7f7f", 1.0))
+    return go.Mesh3d(x=v[:, 0], y=v[:, 1], z=v[:, 2], i=f[:, 0], j=f[:, 1], k=f[:, 2], color=colour, opacity=opacity,
+                     flatshading=True, name=f"{group} ({len(items)})", hovertext=text, hoverinfo="text",
+                     showlegend=True, visible=visible)
+
+
+def _polygon_trace(polys: list, z: float, colour: str, name: str, labels: list[str]) -> go.Mesh3d | None:
+    xs, ys, ii, jj, kk, text, offset = [], [], [], [], [], [], 0
+    for poly, label in zip(polys, labels):
+        for tri in shapely.get_parts(shapely.constrained_delaunay_triangles(poly)):
+            c = np.asarray(tri.exterior.coords)[:3]
+            xs.extend(c[:, 0]); ys.extend(c[:, 1])
+            ii.append(offset); jj.append(offset + 1); kk.append(offset + 2)
+            text.extend([label] * 3)
+            offset += 3
+    if not xs:
+        return None
+    return go.Mesh3d(x=xs, y=ys, z=[z] * len(xs), i=ii, j=jj, k=kk, color=colour, opacity=0.55, name=name,
+                     hovertext=text, hoverinfo="text", showlegend=True)
+
+
+def _line_trace(geoms, z: float, colour: str, name: str, width: int = 4, dash=None) -> go.Scatter3d | None:
+    xs, ys = [], []
+    for g in geoms:
+        for part in shapely.get_parts(g):
+            c = np.asarray(part.coords)
+            xs.extend(list(c[:, 0]) + [None]); ys.extend(list(c[:, 1]) + [None])
+    if not xs:
+        return None
+    return go.Scatter3d(x=xs, y=ys, z=[z if x is not None else None for x in xs], mode="lines", name=name,
+                        line={"color": colour, "width": width, "dash": dash}, hoverinfo="skip")
+
+
+def _point_trace(gdf, z: float, colour: str, name: str, label_cols: list[str], size: int = 4) -> go.Scatter3d | None:
+    if gdf is None or len(gdf) == 0:
+        return None
+    text = ["<br>".join(f"{c}: {row[c]}" for c in label_cols) for _, row in gdf.iterrows()]
+    return go.Scatter3d(x=gdf.geometry.x, y=gdf.geometry.y, z=[z] * len(gdf), mode="markers", name=f"{name} ({len(gdf)})",
+                        marker={"size": size, "color": colour}, hovertext=text, hoverinfo="text")
+
+
+def build_3d_view(meshes: dict, network: dict, connectors: dict, storey_name: str, elevation_m: float,
+                  hidden: list[str], out_path: Path) -> Path:
+    traces = [_mesh_trace(group, items, "legendonly" if group in hidden else True)
+              for group, items in meshes.items() if items]
+
+    z_floor, z_net = elevation_m + 0.02, elevation_m + 0.1
+    regions = network["regions"]
+    for kind, colour in (("room", "#ffe08a"), ("corridor", "#9ecae1")):
+        sel = regions[regions["kind"] == kind] if len(regions) else regions
+        labels = [f"{r.region_id} ({kind}) {r.area_m2} m2, doors {r.doors}" for r in sel.itertuples()]
+        traces.append(_polygon_trace(list(sel.geometry), z_floor, colour, f"walkable {kind} regions ({len(sel)})", labels))
+    traces.append(_line_trace(network["centrelines"].geometry, z_net, "#0055ff", "corridor centreline"))
+    conn = connectors["connectors"]
+    if len(conn):
+        traces.append(_line_trace(conn[conn["kind"] == "room_spoke"].geometry, z_net, "#e6550d", "room spokes", 3))
+        traces.append(_line_trace(conn[conn["kind"] == "corridor_snap"].geometry, z_net, "#2ca02c", "corridor snaps", 3))
+    traces.append(_point_trace(network["room_nodes"], z_net, "#e6550d", "room nodes", ["node_id", "doors"]))
+    traces.append(_point_trace(connectors["door_access"], z_net, "#d62728", "doorway nodes",
+                               ["name", "door_global_id", "connection_status"], 3))
+    traces.append(_point_trace(connectors["lift_access"], z_net, "#9467bd", "lift access (label-only)",
+                               ["name", "lift_global_id", "connection_status"], 6))
+
+    fig = go.Figure([t for t in traces if t is not None])
+    fig.update_layout(
+        title=f"Storey {storey_name} — 3D view",
+        annotations=[{"text": "IFC world coordinates in metres (synthetic local frame, not geographic). "
+                              "Click legend entries to show/hide; drag to rotate.",
+                      "xref": "paper", "yref": "paper", "x": 0, "y": 1.0, "showarrow": False, "font": {"size": 11}}],
+        scene={"aspectmode": "data", "xaxis_title": "X (m)", "yaxis_title": "Y (m)", "zaxis_title": "Z (m)"},
+        legend={"itemsizing": "constant"},
+        margin={"l": 0, "r": 0, "t": 40, "b": 0},
+    )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.write_html(str(out_path), include_plotlyjs="cdn")
     return out_path

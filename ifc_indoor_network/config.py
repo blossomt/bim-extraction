@@ -87,3 +87,7 @@ MAX_SNAP_DISTANCE_M = 3.0
 SNAP_WIDTH_MARGIN_M = 1.0
 # Lift landing-door footprints are linked to walkable regions within this distance.
 LIFT_ADJACENCY_TOL_M = 0.5
+
+# Optional Plotly 3D view: Phase 2 categories meshed (openings subtracted). Spaces start hidden in the legend.
+PLOT3D_CATEGORIES = ["walls", "obstacles", "doors", "stairs", "lifts", "spaces"]
+PLOT3D_HIDDEN = ["spaces"]

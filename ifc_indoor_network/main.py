@@ -6,6 +6,7 @@ Phase 3: 2D geometry extraction and a minimal local-coordinate map.
 Phase 4: floor footprint (wall envelope) and naive / opening-aware walkable polygons.
 Phase 5: walking network — walkable area split at door cuts; room centre nodes; pygeoops corridor centrelines.
 Phase 6: door and lift connectors.
+Phase 9: optional Plotly 3D view.
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--storey-id", default=None, help="IfcBuildingStorey GlobalId; overrides --storey")
     p.add_argument("--list-storeys", action="store_true", help="Print the inventory and storeys, then exit")
     p.add_argument("--output-dir", type=Path, default=config.OUTPUT_DIR)
+    p.add_argument("--no-3d", action="store_true", help="Skip the optional Plotly 3D view")
     return p.parse_args(argv)
 
 
@@ -270,7 +272,17 @@ def main(argv: list[str] | None = None) -> int:
                 args.output_dir / "floor_plan.html",
             )
             print(f"Map written to {map_path}")
-            print("\nPhases 1-6 only: full visualisation polish and diagnostics report are not implemented yet.")
+            if not args.no_3d:
+                t3 = time.time()
+                meshes = geometry_processing.collect_display_meshes(model, extracted, config.PLOT3D_CATEGORIES, config)
+                path_3d = visualisation.build_3d_view(
+                    meshes, network, conn, selected.name, selected.elevation_m or 0.0, config.PLOT3D_HIDDEN,
+                    args.output_dir / "floor_plan_3d.html",
+                )
+                counts = {k: len(v) for k, v in meshes.items()}
+                print(f"3D view written to {path_3d} ({time.time() - t3:.1f}s; meshes {counts}; "
+                      f"{path_3d.stat().st_size / 1e6:.1f} MB)")
+            print("\nPhases 1-6 and 9 done: full visualisation polish (7) and diagnostics report (8) are not implemented yet.")
 
     out_path.write_text(json.dumps(inv, indent=2, default=str))
     print(f"\nInventory written to {out_path}  ({time.time() - t0:.1f}s total)")
