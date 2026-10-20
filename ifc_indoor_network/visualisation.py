@@ -55,15 +55,27 @@ LAYERS = [
     ("Door cuts applied to host walls", "door_cuts", _style("#00e5ff", "#008b9c", opacity=0.6)),
     ("Stairs", "stairs", _style("#9467bd", opacity=0.4)),
     ("Lift parts (label-only; orange = landing-door access candidate, dashed = misplaced)", "lifts", _lift_style),
-    ("Centreline (pygeoops)", "centrelines", lambda _f: {"color": "#0055ff", "weight": 2, "opacity": 0.9}),
+    ("Network regions (rooms yellow / corridors blue)", "net_regions",
+     lambda f: {"fillColor": "#ffe08a" if f["properties"]["kind"] == "room" else "#9ecae1", "color": "#666666",
+                "weight": 1, "fillOpacity": 0.45}),
+    ("Corridor centreline (pygeoops)", "net_centrelines", lambda _f: {"color": "#0055ff", "weight": 2, "opacity": 0.9}),
+    ("Room door spokes", "net_spokes", lambda _f: {"color": "#e6550d", "weight": 2, "opacity": 0.9, "dashArray": "4 3"}),
+]
+
+# Point layers: (label, frame key, colour, radius, row filter)
+POINT_LAYERS = [
+    ("Room centre nodes", "net_room_nodes", "#e6550d", 5, lambda g: g[g["doors"] > 0]),
+    ("Room-like regions without doors (isolated)", "net_room_nodes", "#999999", 3, lambda g: g[g["doors"] == 0]),
+    ("Doorway nodes", "net_doors", "#d62728", 3, lambda g: g),
 ]
 
 TOOLTIP_FIELDS = ["category", "name", "global_id", "entity", "storey", "status", "info"]
 
 
 def _tooltip_fields(gdf) -> list[str]:
-    fields = [f for f in TOOLTIP_FIELDS if f in gdf.columns]
-    return fields or [c for c in gdf.columns if c != "geometry"]
+    if "category" in gdf.columns:  # IFC element frames
+        return [f for f in TOOLTIP_FIELDS if f in gdf.columns]
+    return [c for c in gdf.columns if c != "geometry"]
 
 
 def build_floor_map(frames: dict, storey_name: str, bounds_xy: list[float] | None, summary_lines: list[str], out_path: Path) -> Path:
@@ -86,7 +98,7 @@ def build_floor_map(frames: dict, storey_name: str, bounds_xy: list[float] | Non
 
     points = frames.get("door_points")
     if points is not None and len(points):
-        layer = folium.FeatureGroup(name=f"Door representative points ({len(points)})")
+        layer = folium.FeatureGroup(name=f"Door representative points ({len(points)})", show=False)
         for _, row in points.iterrows():
             folium.CircleMarker(
                 location=[row.geometry.y, row.geometry.x], radius=3, color="#d62728", fill=True,
@@ -95,8 +107,22 @@ def build_floor_map(frames: dict, storey_name: str, bounds_xy: list[float] | Non
         layer.add_to(m)
     lines = frames.get("door_lines")
     if lines is not None and len(lines):
-        folium.GeoJson(lines.to_json(), name=f"Door axes ({len(lines)})",
+        folium.GeoJson(lines.to_json(), name=f"Door axes ({len(lines)})", show=False,
                        style_function=lambda _f: {"color": "#d62728", "weight": 3}).add_to(m)
+
+    for label, key, colour, radius, select in POINT_LAYERS:
+        gdf = frames.get(key)
+        if gdf is None or len(gdf) == 0:
+            continue
+        gdf = select(gdf)
+        if len(gdf) == 0:
+            continue
+        fields = [c for c in gdf.columns if c != "geometry"]
+        folium.GeoJson(
+            gdf.to_json(), name=f"{label} ({len(gdf)})",
+            marker=folium.CircleMarker(radius=radius, color=colour, fill=True, fill_opacity=1),
+            tooltip=folium.GeoJsonTooltip(fields=fields),
+        ).add_to(m)
 
     folium.LayerControl(collapsed=False).add_to(m)
     if bounds_xy:

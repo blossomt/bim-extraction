@@ -36,6 +36,10 @@ Default target storey: **Level 1** (95 spaces, 120 doors, 38 lift label candidat
 
 5. **Misplaced landing doors**: 7 of Level 1's 16 `Elevator_LandingDoor*` proxies are placed at Z ≈ 6.0 m (Level 2 height) although contained in Level 1. Decision: report and flag them, but do **not** connect them to the Level 1 network (status `excluded_placement_inconsistent`). This excludes; it never reassigns.
 
+## Decision (reviewed after Phase 5)
+
+7. **Room / corridor network**: the opening-aware walkable polygon is split at door cuts into regions (rooms and corridors are then joined only through doorways). Regions with rectangularity ≥ 0.85 and aspect ≤ 3 are **rooms**: one centre node (centroid, or point-on-surface if it falls in a hole) plus straight spokes to each adjacent open doorway. All other regions are **corridors** (incl. the central corridor, which is not an `IfcSpace`): pygeoops centreline with stronger pruning (`min_branch_length=2.0`, `simplifytolerance=0.1`), possible because doorways are no longer inside the polygon. Room/corridor classification is purely geometric and labelled as such.
+
 ## Decision (reviewed after Phase 3)
 
 6. **Floor footprint source = wall envelope (option B)**, because `IfcSpace` is not reliable enough (Level 1 main circulation is not modelled as a space: spaces ≈ 2,730 m² vs envelope ≈ 6,600 m²). Footprint = filled outer rings of the union of wall + curtain-wall footprints that span walking height, flagged `footprint_source = derived_from_wall_envelope`. A 0.02 m morphological closing seals sub-centimetre envelope gaps (without it Level 1 loses the corridor/lobby, ~2,000 m²); it is applied only to the envelope, never to the walkable polygon. Fallback: FLOOR/BASESLAB slabs, then `unavailable`. `IfcSpace` stays a separate layer and is compared in diagnostics.
@@ -69,13 +73,13 @@ Each phase ends with runnable code, tests passing, and an inspected output. Do n
 
 ### Phase 5 — Centreline with pygeoops ✅
 - **Depends on**: Phase 4.
-- **Deliverables**: `network_generation.py` using `pygeoops.centerline(geometry, densify_distance, min_branch_length, simplify_tolerance, extend)` (signature verified in 0.6.0) per polygon component; stable component IDs; failures/empties reported with diagnostics.
-- **Validation**: runtime acceptable, components count, visual overlay.
-- **Done when**: centreline layer produced for each walkable component or a recorded reason why not.
+- **Deliverables**: `network_generation.py` — regions split at door cuts (decision 7); room centre nodes + door spokes; `pygeoops.centerline(geometry, densify_distance, min_branch_length, simplifytolerance, extend)` (signature verified in 0.6.0) per corridor region; stable IDs (`R###`, `R###.N`, `R###.C#`); failures/empties reported.
+- **Validation**: runtime, region/door adjacency counts, visual overlay.
+- **Done when**: every corridor region has a centreline or a recorded reason; every room region has a node; door adjacency reported.
 
 ### Phase 6 — Door and lift connectors
 - **Depends on**: Phase 5.
-- **Deliverables**: access point per door, nearest centreline point (`shapely.ops.nearest_points`), connector line, distance, status vs configurable max snap distance; flag points outside walkable polygon. Lift connection only from explicit (or, if approved, flagged label-based) access geometry — never shaft centres.
+- **Deliverables**: door → corridor centreline connectors for doors adjacent to corridor regions (nearest point via `shapely.ops.nearest_points`), connector line, distance, status vs configurable max snap distance; room spokes from Phase 5 reused for room sides; flag points outside walkable polygon. Lift connection only from explicit (or approved label-based) access geometry — never shaft centres.
 - **Done when**: every door has a connector or a recorded failure reason.
 
 ### Phase 7 — Full interactive 2D visualisation

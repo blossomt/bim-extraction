@@ -1,8 +1,14 @@
 # PROGRESS
 
-**Current phase:** Phase 5 complete — awaiting review before Phase 6.
+**Current phase:** Phase 5 revised (room/corridor network) — awaiting review before Phase 6.
 
 ## Completed
+
+### Phase 5 revision — room nodes + corridor centrelines (2026-10-21)
+- Requested: a centreline for the central corridor (not an `IfcSpace`) and no diagonal "X" skeletons in rectangular rooms.
+- `network_generation.build_network()` (replaces `generate_centrelines`): walkable − door cuts → regions `R###` (by area); rooms (rectangularity ≥ 0.85, aspect ≤ 3) → centre node `R###.N` + spokes to open doorways; corridors → pygeoops centreline `R###.C#` (`densify 0.25`, `min_branch 2.0`, `simplify 0.1`). Doorway nodes record adjacent regions/kinds; doors without walkable doorway are `blocked`.
+- Level 1: 139 regions (107 room-like, 32 corridors); central corridor = largest corridor region (~1,900 m²) with its own centreline; corridor centreline 1,339 m in 32 components (was 3,263 m of noisy skeleton); 68 room nodes with doors, 81 spokes (3 cross outside walkable — non-convex rooms, flagged); doors: 118 open (104 between two regions, 14 with one region e.g. external), 2 blocked; 48 regions without doors (39 room-like, 9 corridor-like: stall cubicles whose doors are proxies, façade gaps, shafts) shown as a separate grey layer. Runtime ~0.5 s.
+- Map layers: network regions (rooms yellow / corridors blue), corridor centreline, room door spokes, room centre nodes, isolated room-like regions, doorway nodes. Output `network_summary.json` (replaces `centreline_summary.json`).
 
 ### Phase 5 — Centreline with pygeoops (2026-10-21)
 - [ifc_indoor_network/network_generation.py](ifc_indoor_network/network_generation.py): one `pygeoops.centerline` call per opening-aware walkable component; connected line groups get IDs `<component>.C<k>`; per-component status `ok` / `fragmented` / `empty` / `failed` (exceptions reported, no substitute algorithm); doorway crossing check (centreline must extend ≥ 0.5 m beyond the door cut); length outside walkable polygon.
@@ -42,7 +48,7 @@
 - [ifc_indoor_network/main.py](ifc_indoor_network/main.py): CLI `--ifc --storey --storey-id --list-storeys --output-dir`; writes `output/inventory.json`. Exit code 2 on bad path / failed selection.
 
 ## Tests
-- `cd ifc_indoor_network && ../.venv/bin/python -m pytest -q` → **32 passed** (~17 s; includes sample-file integration tests, skipped if file absent).
+- `cd ifc_indoor_network && ../.venv/bin/python -m pytest -q` → **33 passed** (~16 s; includes sample-file integration tests, skipped if file absent).
 - Manual: `main.py` (Level 1) exit 0; `--storey "Level 9"` exit 2 listing storeys; `--storey "level 7a"` selects Level 7A (not Level 7); bad `--ifc` path exit 2.
 
 ## Known issues / data-quality findings
@@ -63,10 +69,12 @@
 - 2 Level 1 external doors (`1IjDNnD1b6tenKMZR0qFDY`, `1IjDNnD1b6tenKMZR0q8OV`) remain blocked: their opening voids one wall but an overlapping exterior brick wall (`...187264/187265`) is not voided. Reported, not fixed.
 - Upper storeys (e.g. Level 4) have incomplete envelopes because multi-storey exterior walls are contained only in their base storey → fragmented footprint. Level 1 (and 2) are the reliable targets.
 - Remaining opening-aware components on Level 1 (59 besides the main one) are rooms/shafts/closets without a door cut reaching the main area — to be examined with centreline/connectors.
-- Centreline is a raw medial axis: diagonal "X" branches in rectangular rooms and saw-tooth spurs along façade mullions/columns. Geometrically valid but noisy; graph simplification is out of scope for now.
+- Centreline is a raw medial axis: diagonal "X" branches in rectangular rooms and saw-tooth spurs along façade mullions/columns. Resolved for rectangular rooms by the room-node revision; corridor centrelines still show some loops around islands (e.g. low partitions in the atrium).
+- Room/corridor classification is geometric (rectangularity/aspect), not from IFC labels. Non-rectangular rooms (L-shapes) are treated as corridors and get a centreline.
+- WC stall doors are `IfcBuildingElementProxy` (`10_Stall Door`), not `IfcDoor`, so stall cubicles are doorless regions.
 
 ## Decisions
 - Reviewed after Phase 1: see "Decisions" in [PLAN.md](PLAN.md) (landing-door proxies as flagged lift access; curtain walls + columns as obstacles; wall section at walking height; git commit per phase).
 
 ## Next steps
-1. Phase 6: door and lift connectors — door access point → nearest centreline point, distance vs max snap distance, status; landing-door proxies as label-only lift access (misplaced ones excluded, decision 5).
+1. Phase 6: connectors — doorway nodes → nearest corridor centreline point (distance vs max snap distance, status); room spokes reused; landing-door proxies as label-only lift access (misplaced ones excluded, decision 5).

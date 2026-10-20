@@ -67,11 +67,15 @@ CUT_CURTAIN_WALL_DOORS = True
 # Doorway reported as still blocked if more than this fraction of its cut area remains covered by obstacles.
 DOORWAY_BLOCKED_FRACTION = 0.5
 
-# pygeoops.centerline parameters (metres). pygeoops' automatic (negative) values scale with average polygon
-# width and pruned doorway branches on Level 1 (72/120 doorways crossed); these fixed values crossed 118/118 open ones.
+# Network: the walkable polygon is split at door cuts into regions. Compact near-rectangular regions are
+# "rooms" (one centre node + straight spokes to their doors); all other regions are "corridors" (pygeoops centreline).
 CENTRELINE_VARIANT = "opening_aware"
-CENTRELINE_DENSIFY_M = 0.25
-CENTRELINE_MIN_BRANCH_M = 0.5
-CENTRELINE_SIMPLIFY_M = 0.05
-# A doorway counts as crossed only if the crossing centreline group extends this far beyond the door cut.
-DOORWAY_CROSSING_MIN_EXTENT_M = 0.5
+ROOM_MIN_RECTANGULARITY = 0.85  # region area / minimum rotated rectangle area
+ROOM_MAX_ASPECT = 3.0  # long / short side of the minimum rotated rectangle
+# pygeoops.centerline parameters for corridor regions (metres). Doorways are not part of corridor regions,
+# so branches can be pruned harder than before without disconnecting doors.
+CORRIDOR_DENSIFY_M = 0.25
+CORRIDOR_MIN_BRANCH_M = 2.0
+CORRIDOR_SIMPLIFY_M = 0.1
+# A region is adjacent to a door if it lies within this distance of the door cut.
+DOOR_ADJACENCY_TOL_M = 0.05

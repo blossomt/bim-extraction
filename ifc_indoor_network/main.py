@@ -4,7 +4,7 @@ Phase 1: model inspection, storey inventory and storey selection.
 Phase 2: semantic element extraction for the selected storey.
 Phase 3: 2D geometry extraction and a minimal local-coordinate map.
 Phase 4: floor footprint (wall envelope) and naive / opening-aware walkable polygons.
-Phase 5: pygeoops centreline per walkable component.
+Phase 5: walking network — walkable area split at door cuts; room centre nodes; pygeoops corridor centrelines.
 """
 
 from __future__ import annotations
@@ -172,19 +172,21 @@ def print_floor_plan(summary: dict) -> list[str]:
     return lines
 
 
-def print_centrelines(summary: dict) -> list[str]:
-    print(f"\nCentreline (pygeoops {summary['pygeoops_version']}, {summary['variant']} walkable, "
-          f"params {summary['parameters']}) in {summary['runtime_s']}s")
-    print(f"  Walkable components {summary['walkable_components']}: {summary['component_status']}")
-    print(f"  Centreline components {summary['centreline_components']}, total length {summary['total_length_m']} m, "
-          f"outside walkable {summary['length_outside_walkable_m']} m")
-    print(f"  Doorways crossed by centreline: {summary['doorways_crossed']}; not crossed: {len(summary['doorways_not_crossed'])}")
-    for c in summary["failed_or_empty"]:
-        print(f"  {c['status'].upper()}: {c['component_id']} area {c['area_m2']} m2 {c.get('error', '')}")
-    for c in summary["fragmented"]:
-        print(f"  Fragmented: {c['component_id']} area {c['area_m2']} m2 -> {c['centreline_groups']} groups")
-    return [f"Centreline: {summary['centreline_components']} components, {summary['total_length_m']} m; "
-            f"doorways crossed {summary['doorways_crossed']}"]
+def print_network(summary: dict) -> list[str]:
+    print(f"\nNetwork ({summary['variant']} walkable split at door cuts; pygeoops {summary['pygeoops_version']}) "
+          f"in {summary['runtime_s']}s")
+    print(f"  Regions: {summary['regions']} (rooms {summary['room_area_m2']} m2, corridors {summary['corridor_area_m2']} m2); "
+          f"split log {summary['region_split']}")
+    print(f"  Room rule {summary['room_rule']} -> {summary['room_nodes']} centre nodes, {summary['room_spokes']} door spokes"
+          f" ({len(summary['spokes_leaving_walkable'])} leave walkable)")
+    print(f"  Corridor centreline params {summary['corridor_parameters']}: status {summary['corridor_status']}, "
+          f"{summary['centreline_components']} components, {summary['centreline_length_m']} m")
+    print(f"  Doors: {summary['doors_by_status']}; by adjacent region count {summary['doors_by_adjacent_region_count']}")
+    print(f"  Regions without doors: {len(summary['regions_without_doors'])} {summary['regions_without_doors_by_kind']}")
+    for c in summary["corridors_failed_or_empty"]:
+        print(f"  {c['status'].upper()}: {c['region_id']} area {c['area_m2']} m2 {c.get('error') or ''}")
+    return [f"Network: {summary['regions']} regions; {summary['room_nodes']} room nodes; "
+            f"corridor centreline {summary['centreline_length_m']} m"]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -232,15 +234,13 @@ def main(argv: list[str] | None = None) -> int:
             plan = geometry_processing.build_floor_plan(geom["frames"], extracted, config)
             panel_lines = print_floor_plan(plan["summary"]) + panel_lines
             (args.output_dir / "floor_plan_summary.json").write_text(json.dumps(plan["summary"], indent=2, default=str))
-            network = network_generation.generate_centrelines(
+            network = network_generation.build_network(
                 plan["frames"][f"walkable_{config.CENTRELINE_VARIANT}"], plan["frames"]["door_cuts"], config
             )
-            panel_lines = print_centrelines(network["summary"]) + panel_lines
-            (args.output_dir / "centreline_summary.json").write_text(
-                json.dumps({**network["summary"], "per_component": network["per_component"]}, indent=2, default=str)
-            )
+            panel_lines = print_network(network["summary"]) + panel_lines
+            (args.output_dir / "network_summary.json").write_text(json.dumps(network["summary"], indent=2, default=str))
             map_path = visualisation.build_floor_map(
-                {**geom["frames"], **plan["frames"], "centrelines": network["centrelines"]},
+                {**geom["frames"], **plan["frames"], **{f"net_{k}": v for k, v in network.items() if k != "summary"}},
                 selected.name, geom["summary"]["bounds_xy_m"], panel_lines,
                 args.output_dir / "floor_plan.html",
             )

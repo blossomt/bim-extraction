@@ -120,7 +120,11 @@ def test_sample_level1_geometry():
 
     import network_generation
     p = gp.build_floor_plan(geom["frames"], extracted, config)
-    net = network_generation.generate_centrelines(p["frames"]["walkable_opening_aware"], p["frames"]["door_cuts"], config)
-    blocked = {b["door_global_id"] for b in p["summary"]["doorways_still_blocked"]}
-    assert set(net["summary"]["doorways_not_crossed"]) == blocked
-    assert net["summary"]["failed_or_empty"] == []
+    net = network_generation.build_network(p["frames"]["walkable_opening_aware"], p["frames"]["door_cuts"], config)
+    s = net["summary"]
+    assert s["doors_by_status"] == {"open": 118, "blocked": 2}
+    assert s["corridors_failed_or_empty"] == []
+    # The central corridor (not an IfcSpace) is the largest region and gets a centreline.
+    largest = net["regions"].iloc[0]
+    assert largest["kind"] == "corridor" and largest["area_m2"] > 1500
+    assert (net["centrelines"]["region_id"] == largest["region_id"]).any()
