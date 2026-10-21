@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import html
 from pathlib import Path
 
@@ -13,6 +14,27 @@ import shapely
 SYNTHETIC_NOTE = (
     "Synthetic local coordinates (IFC world X/Y, metres) on a blank canvas — not geographic."
 )
+VENDOR_DIR = Path(__file__).resolve().parent / "vendor"
+
+
+def _offline_map_header() -> str:
+    parts = []
+    for library in ("leaflet", "jquery", "bootstrap"):
+        license_text = (VENDOR_DIR / f"LICENSE-{library}").read_text(encoding="utf-8")
+        parts.append(f"<!--\n{license_text}\n-->")
+    for filename in ("leaflet.css", "bootstrap.min.css"):
+        css = (VENDOR_DIR / filename).read_text(encoding="utf-8")
+        if filename == "leaflet.css":
+            for image in ("layers.png", "layers-2x.png", "marker-icon.png"):
+                data = base64.b64encode((VENDOR_DIR / "images" / image).read_bytes()).decode("ascii")
+                css = css.replace(f"images/{image}", f"data:image/png;base64,{data}")
+        css = "\n".join(line for line in css.splitlines() if "sourceMappingURL=" not in line)
+        parts.append(f"<style>{css}</style>")
+    for filename in ("leaflet.js", "jquery.min.js"):
+        js = (VENDOR_DIR / filename).read_text(encoding="utf-8")
+        js = "\n".join(line for line in js.splitlines() if "sourceMappingURL=" not in line)
+        parts.append(f"<script>{js}</script>")
+    return "\n".join(parts)
 
 # layer name -> (frame key, style function)
 WALL_COLOURS = {"internal": "#555555", "external": "#000000", "unknown": "#d6008f"}
@@ -138,6 +160,10 @@ def _panel(css: str, body: str) -> folium.Element:
 
 def build_floor_map(frames: dict, storey_name: str, bounds_xy: list[float] | None, summary_lines: list[str], out_path: Path) -> Path:
     m = folium.Map(location=[0, 0], zoom_start=2, crs="Simple", tiles=None, control_scale=False, prefer_canvas=True)
+    # This map uses GeoJSON/CircleMarker, not Bootstrap JS or AwesomeMarkers.
+    m.default_js = []
+    m.default_css = []
+    m.get_root().header.add_child(folium.Element(_offline_map_header()), name="offline_assets")
     m.get_root().header.add_child(folium.Element("<style>.leaflet-container{background:#f4f4f2}</style>"))
 
     for label, key, style, show in LAYERS:
@@ -301,37 +327,53 @@ def build_3d_view(meshes: dict, network: dict, connectors: dict, storey_name: st
 
     note = "IFC world coordinates in metres (synthetic local frame, not geographic). Legend toggles layers; drag to rotate."
     all_verts = [it["verts"] for items in meshes.values() for it in items]
-    xy = np.vstack([v[:, :2] for v in all_verts] + [np.asarray(regions.total_bounds).reshape(2, 2)]) if all_verts else \
-        np.asarray(regions.total_bounds).reshape(2, 2)
-    (x0, y0), (x1, y1) = xy.min(axis=0), xy.max(axis=0)
+    xy_sources = [v[:, :2] for v in all_verts if len(v)]
+    if len(regions) and not regions.geometry.is_empty.all():
+        xy_sources.append(np.asarray(regions.total_bounds).reshape(2, 2))
     z0 = elevation_m - 0.5
     z1 = z_clip_m if z_clip_m is not None else max((float(v[:, 2].max()) for v in all_verts), default=elevation_m + 3)
     if z_clip_m is not None:
         note += f" View clipped at Z = {z_clip_m:.1f} m (next storey); some elements extend higher."
-    # True-scale aspect from the *visible* ranges ("data" mode would use the full, unclipped Z extent).
-    span = max(x1 - x0, y1 - y0)
-    aspect = {"x": (x1 - x0) / span, "y": (y1 - y0) / span, "z": (z1 - z0) / span}
     axis_style = {"backgroundcolor": "#fafafa", "gridcolor": "#e5e5e5", "showspikes": False}
+    scene = {
+        "aspectmode": "data",
+        "xaxis": {"title": "X (m)", **axis_style},
+        "yaxis": {"title": "Y (m)", **axis_style},
+        "zaxis": {"title": "Z (m)", "nticks": 3, **axis_style},
+        "camera": {"eye": {"x": 0.45, "y": -1.1, "z": 0.75}},
+    }
+    if xy_sources:
+        xy = np.vstack(xy_sources)
+        if not np.isfinite(xy).all() or not np.isfinite([z0, z1]).all():
+            raise ValueError("Cannot build 3D view: geometry bounds or storey elevations are not finite.")
+        (x0, y0), (x1, y1) = xy.min(axis=0), xy.max(axis=0)
+        span = max(x1 - x0, y1 - y0)
+        if span > 0:
+            # Use visible ranges, not the full, unclipped mesh Z extent.
+            scene.update(
+                aspectmode="manual",
+                aspectratio={"x": (x1 - x0) / span, "y": (y1 - y0) / span, "z": (z1 - z0) / span},
+            )
+            scene["xaxis"]["range"] = [x0, x1]
+            scene["yaxis"]["range"] = [y0, y1]
+        scene["zaxis"]["range"] = [z0, z1]
+    else:
+        note += " No displayable geometry or walkable regions for the selected storey."
+        for axis in ("xaxis", "yaxis", "zaxis"):
+            scene[axis]["visible"] = False
 
     fig = go.Figure([t for t in traces if t is not None])
     fig.update_layout(
         title=f"{storey_name} — IFC elements and derived walking network (3D)",
         annotations=[{"text": note, "xref": "paper", "yref": "paper", "x": 0, "y": 1.0, "showarrow": False,
                       "font": {"size": 11, "color": "#555"}}],
-        scene={
-            "aspectmode": "manual",
-            "aspectratio": aspect,
-            "xaxis": {"title": "X (m)", "range": [x0, x1], **axis_style},
-            "yaxis": {"title": "Y (m)", "range": [y0, y1], **axis_style},
-            "zaxis": {"title": "Z (m)", "range": [z0, z1], "nticks": 3, **axis_style},
-            "camera": {"eye": {"x": 0.45, "y": -1.1, "z": 0.75}},
-        },
+        scene=scene,
         legend={"itemsizing": "constant", "groupclick": "toggleitem", "bgcolor": "rgba(255,255,255,0.8)"},
         margin={"l": 0, "r": 0, "t": 50, "b": 0},
         paper_bgcolor="white",
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.write_html(str(out_path), include_plotlyjs="cdn")
+    fig.write_html(str(out_path), include_plotlyjs=True)  # embed plotly.js so the file works offline
     return out_path, fig
 
 

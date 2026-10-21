@@ -302,25 +302,26 @@ def _polygon_stats(geom) -> dict:
 
 
 def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
-    """Footprint from the wall envelope (fallback: floor slabs), then naive and opening-aware walkable polygons."""
+    """Footprint = wall envelope ∪ floor slabs, then naive and opening-aware walkable polygons."""
     grid = cfg.GEOMETRY_GRID_SIZE_M
     walls = _active(frames["walls"])
     obstacles = _active(frames["obstacles"])
-    curtain = obstacles[obstacles["entity"] == "IfcCurtainWall"] if len(obstacles) else obstacles
+    envelope_obstacles = obstacles[obstacles["entity"].isin(cfg.ENVELOPE_OBSTACLE_ENTITIES)] if len(obstacles) else obstacles
 
-    # Footprint
-    envelope = shapely.union_all(list(walls.geometry) + list(curtain.geometry), grid_size=grid)
+    # Footprint: walls plus curtain walls and columns spanning walking height (facade walls often stop at columns).
+    envelope = shapely.union_all(list(walls.geometry) + list(envelope_obstacles.geometry), grid_size=grid)
     c = cfg.ENVELOPE_CLOSING_M
     closed = envelope.buffer(c, join_style="mitre").buffer(-c, join_style="mitre") if c > 0 and not envelope.is_empty else envelope
-    footprint = fill_outer_rings(closed)
-    source, reason = "derived_from_wall_envelope", None
-    if footprint.is_empty:
-        floor_ids = {s["global_id"] for s in extracted["elements"]["slabs"] if s["is_floor_candidate"]}
-        slabs = frames["slabs"]
-        slab_geoms = [g for gid, g in zip(slabs.get("global_id", []), slabs.geometry) if gid in floor_ids and not g.is_empty]
-        footprint = polygonal_part(shapely.union_all(slab_geoms)) if slab_geoms else Polygon()
-        source = "floor_slabs" if not footprint.is_empty else "unavailable"
-        reason = None if slab_geoms else "No wall/curtain-wall envelope spanning walking height and no FLOOR/BASESLAB slabs."
+    wall_fill = fill_outer_rings(closed)
+    # Union with FLOOR/BASESLAB slabs: open levels (void decks, car parks) have floor slabs but no enclosing walls.
+    floor_ids = {s["global_id"] for s in extracted["elements"]["slabs"] if s["is_floor_candidate"]}
+    slabs = frames["slabs"]
+    slab_geoms = [g for gid, g in zip(slabs.get("global_id", []), slabs.geometry) if gid in floor_ids and not g.is_empty]
+    slab_fill = polygonal_part(shapely.union_all(slab_geoms, grid_size=grid)) if slab_geoms else Polygon()
+    footprint = polygonal_part(shapely.union_all([wall_fill, slab_fill], grid_size=grid))
+    source = {(True, True): "wall_envelope_and_floor_slabs", (True, False): "derived_from_wall_envelope",
+              (False, True): "floor_slabs", (False, False): "unavailable"}[(not wall_fill.is_empty, not slab_fill.is_empty)]
+    reason = "No wall/curtain-wall/column envelope spanning walking height and no FLOOR/BASESLAB slabs." if footprint.is_empty else None
 
     # Door cuts: only explicit door-filled openings (host via IfcRelVoidsElement) and doors aggregated in curtain walls.
     opening_recs = {o["global_id"]: o for o in extracted["elements"]["openings"]}
@@ -384,6 +385,14 @@ def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
         "footprint_source": source,
         "footprint_unavailable_reason": reason,
         "envelope_closing_m": c,
+        "envelope_elements": {"walls": len(walls), **Counter(envelope_obstacles["entity"] if len(envelope_obstacles) else [])},
+        "footprint_parts_m2": {
+            "wall_envelope": round(wall_fill.area, 3),
+            "floor_slabs": round(slab_fill.area, 3),
+            "floor_slab_count": len(slab_geoms),
+            "slabs_only": round(slab_fill.difference(wall_fill).area, 3),
+            "wall_envelope_only": round(wall_fill.difference(slab_fill).area, 3),
+        },
         "footprint": _polygon_stats(footprint),
         "obstacles_used": {"walls": len(walls), "obstacles": len(obstacles)},
         "excluded_not_spanning_walking_height": not_active,

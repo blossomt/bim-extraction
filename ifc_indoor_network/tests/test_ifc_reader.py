@@ -17,6 +17,12 @@ def _storey(name, gid, elev=0.0):
 STOREYS = [_storey("Level 1", "A"), _storey("Level 7", "B", 30), _storey("Level 7A", "C", 27)]
 
 
+def test_storey_world_z_uses_placement_not_relative_elevation():
+    # MK18N438 BLK3_Storey 1: Elevation 20.5 m relative to an IfcBuilding placed at 5.5 m; meshes use world Z 26.0 m.
+    assert StoreyInfo("G", "BLK3_Storey 1", None, 20500.0, 20.5, 26.0, "B").world_z_m == 26.0
+    assert StoreyInfo("G", "No placement", None, 3000.0, 3.0, None, "B").world_z_m == 3.0
+
+
 class TestSelectStorey:
     def test_exact(self):
         assert select_storey(STOREYS, "Level 7").global_id == "B"

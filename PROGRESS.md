@@ -4,6 +4,46 @@
 
 ## Completed
 
+### Phase 9 follow-up — Offline 3D view (2026-10-21)
+- `build_3d_view()` writes with `include_plotlyjs=True`, so plotly.js (from the installed `plotly` 7.1.0 package, plotly.js 4.1.1) is embedded and `floor_plan_3d.html` needs no network access. Cost: about +4.6 MB per file.
+- The embedded bundle still contains Plotly's default topojson URL (`cdn.plot.ly/un/`). Only geographic map traces use it; the 3D view has none.
+- Validation: 42 passed, 2 skipped. The test checks there are no external `<script src>` tags. The existing `output/floor_plan_3d.html` was patched in place by swapping its CDN tag for the same plotly.js 4.1.1 bundle, and rendered with all non-file requests blocked (0 requests).
+
+### Phase 4 revision — World storey Z; slab union in footprint (2026-10-21)
+- Real-model test: `MK18N438…LOD3.ifc`, `BLK3_Storey 1`. Of 184 columns, 91 span walking height and 83 are freestanding. There are 34 FLOOR slabs, and no doors or spaces.
+- **Storey datum bug (fixed):**
+  - `IfcBuildingStorey.Elevation` is relative to the building, and this model places its `IfcBuilding` at z = 5.5 m. BLK3_Storey 1 has Elevation 20.5 m, but its world placement is z = 26.0 m.
+  - Meshes are in world coordinates, so the walking height of 21.5 m missed every element: all walls, columns and openings were `covers_walking_height=False`.
+  - New `StoreyInfo.world_z_m` uses placement Z, falling back to Elevation. It is now used for walking height, the placement-Z window and the 3D floor/clip.
+- **Footprint = wall envelope ∪ FLOOR/BASESLAB slabs (user decision):**
+  - With the correct datum, the wall envelope covers only 94 m² in 117 parts; this is an open level. The FLOOR slabs cover 1,479 m².
+  - `footprint_source = wall_envelope_and_floor_slabs`. The summary `footprint_parts_m2` reports the envelope, slab, slabs-only and envelope-only areas.
+  - Trade-off: slab overhangs and balconies are included. On MK23A091 `5TH STOREY` the footprint grows 1,713 → 1,752 m² (+38.5 m² from slabs only), and all 33 doors stay in one network component.
+  - Slabs are not filtered by height. Some storey-contained slabs sit at other elevations.
+- **Centreline around columns (tried, then reverted at the user's request):**
+  - pygeoops' medial axis loops around every hole. On BLK3 there are 44 loops, 35 of them around freestanding columns (0.3–1.4 m² each).
+  - A variant filled holes ≤ 2 m² and detoured the line around them (44 → 2 loops, 862 → 649 m). The user prefers loops around columns, because walking either side is a valid route, so the variant was removed. The centreline is unchanged from Phase 5.
+- **Validation:** 42 passed, 2 skipped (the reverted detour tests were removed). BLK3 runs end to end including 3D (exit 0). The Level 1 sample (absent) was **not** re-run, and the committed outputs were not regenerated.
+### Phase 4 revision — Columns close the wall envelope (2026-10-21)
+- Real-model finding (`MK23A091…LOD3.ifc`, `5TH STOREY`): facade walls stop at structural columns, so the wall + curtain-wall envelope was open around units 05-05…05-10. Footprint 842 m² in 5 parts; 870 of 1,699 m² of `IfcSpace` area lay outside it, so those units had no regions, nodes or centrelines.
+- `build_floor_plan()` now adds `IfcColumn` footprints spanning walking height (`config.ENVELOPE_OBSTACLE_ENTITIES`) to the envelope. Columns are still subtracted as obstacles, so walkable geometry inside the envelope is unchanged. The summary reports `envelope_elements`.
+- `5TH STOREY` result: footprint 1,713 m² in 1 part; `IfcSpace` area outside footprint 0 m²; walkable 1,625 m²; 26 rooms / 7 corridors; 33 doors open, 30 connected on both sides; one network component holds all 33 doors (previously 6 door-bearing components, 1 blocked door).
+- Windows were not added to the envelope. 136 of 148 windows on that storey fill wall openings, and walls are meshed solid, so they would add nothing. Tested: adding windows changed the footprint by 0 m².
+- Still present (expected): L-shaped units 05-01/05-02 are classified as corridors (rectangularity 0.73–0.79), and rooms 02-107/02-108 are doorless because their only openings have no door filling.
+- Validation: 40 passed, 2 skipped (the sample-IFC tests; `data/20210219Architecture.ifc` was not present). The committed Level 1 sample outputs were **not** regenerated and the effect of this change on Level 1 is unverified.
+
+### Phase 9 follow-up — Empty-storey 3D rendering (2026-10-21)
+- Reproduced the `layout.scene.aspectratio.x = NaN` crash using an empty network, both with and without valid IFC display meshes. Root cause: empty region `total_bounds` is all NaN and was always included in the 3D XY bounds.
+- `build_3d_view()` now includes region bounds only when non-empty geometry exists. Empty results have an explicit no-displayable-geometry notice and hidden axes; the CLI also prints a warning. Zero horizontal extent uses Plotly data aspect mode instead of dividing by zero. Non-empty views retain their true-scale, clipped aspect ratios.
+- Validation: 6 visualisation tests pass; no IDE diagnostics in the changed Python files. Regression coverage includes empty results with/without next-storey clipping, valid meshes without walkable regions, zero horizontal extent and existing non-empty/offline exports.
+- The reported `Storey -1` run extracted zero elements in every supported category; its footprint was unavailable. No IFC membership was inferred or reassigned. User-generated model outputs were preserved. A full-model validation attempt was blocked by organization content policy on the diagnostic-log path; no access workaround was attempted.
+
+### Phase 7 follow-up — Offline 2D map (2026-10-21)
+- `floor_plan.html` is now a standalone file: Leaflet 1.9.3, jQuery 3.7.1, Bootstrap 5.2.2 CSS and Leaflet control images are embedded. Pinned source assets and their licenses are kept in `ifc_indoor_network/vendor/`; generation needs no network access. Unused Bootstrap JS, AwesomeMarkers and icon-font CDN dependencies are omitted.
+- `visualisation.build_floor_map()` embeds the same assets for all future exports. The committed Level 1 HTML was updated without changing its map body or geometry; the sample IFC is not present in this checkout, so the IFC pipeline was not re-run.
+- Validation: 2 visualisation tests pass, including a standalone-resource regression test from a different working directory. Opened the committed HTML via `file://` with browser networking disabled and HTTP(S) requests blocked (cache bypassed): zero external requests or JavaScript errors; map rendering, embedded layer-control image, door-layer toggling, zoom and IFC property popup verified.
+- Scope: the optional Plotly 3D HTML still used its CDN at this point (made offline in the "Offline 3D view" follow-up).
+
 ### Phase 7 — Presentation-ready visualisation + README (2026-10-21)
 - 2D map: layers grouped as `IFC ·`, `Analysis ·`, `Network ·`; analysis/intermediate layers hidden by default; click popups with name, GlobalId, entity, storey, status, info and flattened standard `Pset_*` properties (new `properties` column); short hover tooltips; legend panel; title bar with the synthetic-coordinates note; collapsible processing summary with presentation-level facts (`map_summary_lines` in `main.py`); collapsed layer control; neutral canvas background.
 - 3D view: legend groups (IFC elements / walking network), translucent walls and curtain walls, raised default camera, Z axis clipped at the next storey elevation (noted on the figure), stair railings skipped (`PLOT3D_SKIP_PART_ENTITIES`), float32 coordinates, shorter hover labels → 4.8 MB (was 13.6 MB), ~2.5 s.
@@ -90,7 +130,7 @@
 - 2 Level 1 external doors (`1IjDNnD1b6tenKMZR0qFDY`, `1IjDNnD1b6tenKMZR0q8OV`) remain blocked: their opening voids one wall but an overlapping exterior brick wall (`...187264/187265`) is not voided. Reported, not fixed.
 - Upper storeys (e.g. Level 4) have incomplete envelopes because multi-storey exterior walls are contained only in their base storey → fragmented footprint. Level 1 (and 2) are the reliable targets.
 - Remaining opening-aware components on Level 1 (59 besides the main one) are rooms/shafts/closets without a door cut reaching the main area — to be examined with centreline/connectors.
-- Centreline is a raw medial axis: diagonal "X" branches in rectangular rooms and saw-tooth spurs along façade mullions/columns. Resolved for rectangular rooms by the room-node revision; corridor centrelines still show some loops around islands (e.g. low partitions in the atrium).
+- Centreline is a raw medial axis: diagonal "X" branches in rectangular rooms and saw-tooth spurs along façade mullions/columns. Resolved for rectangular rooms by the room-node revision; corridor centrelines still show some loops around islands (e.g. low partitions in the atrium). Loops around freestanding columns are kept by design.
 - Room/corridor classification is geometric (rectangularity/aspect), not from IFC labels. Non-rectangular rooms (L-shapes) are treated as corridors and get a centreline.
 - WC stall doors are `IfcBuildingElementProxy` (`10_Stall Door`), not `IfcDoor`, so stall cubicles are doorless regions.
 - Level 2 network splits into 15 door-bearing components and Level 4 into 47 (incomplete envelopes / missing door relationships); Level 1 is fully connected.

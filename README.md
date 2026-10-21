@@ -11,10 +11,10 @@ Reads an IFC building model, selects one floor by its `IfcBuildingStorey` name, 
 1. **Inspect** the IFC: schema, units, storeys and element counts. Each element is assigned to a storey only through explicit containment, aggregation, void or fill relationships.
 2. **Extract** the walls, doors (with opening → host wall), stairs, columns, curtain walls and lift parts on the selected storey.
 3. **Geometry**: IfcOpenShell meshes are projected to 2D Shapely footprints in metres.
-4. **Walkable area**: the floor footprint is the area enclosed by the walls and curtain walls. Walls are then subtracted, and only door-filled openings are cut through them (never windows).
+4. **Walkable area**: the floor footprint is the area enclosed by the walls, curtain walls and columns (where facade walls stop at columns), united with the FLOOR slabs (for open levels). Walls and columns are then subtracted, and only door-filled openings are cut through walls (never windows). Walking height is measured from the storey's world placement Z, not its building-relative `Elevation`.
 5. **Network**: the walkable area is split at the doorways into regions.
    - Rectangular regions become **rooms**, each with one centre node.
-   - All other regions become **corridors**, each with a `pygeoops` centreline.
+   - All other regions become **corridors**, each with a `pygeoops` centreline. The centreline loops around freestanding columns, so either side can be walked.
    - Every doorway is connected to the room node or corridor centreline on each side.
 6. **Lifts**: there is no `IfcTransportElement` in the sample model. Only proxies named `Elevator_LandingDoor*` are used as lift access, and they are flagged *label-only*.
 
@@ -46,12 +46,19 @@ The outputs for the sample model's Level 1 are committed, so they can be browsed
 
 | File | Content |
 |---|---|
-| `floor_plan.html` | Interactive 2D map (Folium). Click any element for its GlobalId, properties and status; IFC, analysis and network layers can be toggled. |
-| `floor_plan_3d.html` | Interactive 3D view (Plotly). Use the legend to filter element types. |
+| `floor_plan.html` | Standalone, offline interactive 2D map (Folium). Click any element for its GlobalId, properties and status; IFC, analysis and network layers can be toggled. |
+| `floor_plan_3d.html` | Standalone, offline interactive 3D view (Plotly; plotly.js embedded, ~4.6 MB overhead). Use the legend to filter element types. |
 | `inventory.json`, `elements.json` | Model inventory and per-element records (storey membership path, relationships, properties). |
 | `geometry_summary.json`, `floor_plan_summary.json`, `network_summary.json`, `connectors_summary.json` | Per-stage results, failures and data-quality flags. |
 
 Coordinates are IFC world X/Y in metres, shown on a blank canvas. They are **synthetic local coordinates, not geographic**.
+
+Open `floor_plan.html` directly in a browser, even without an internet connection.
+Its JavaScript, styles and control images are embedded; copying just this HTML file
+is sufficient. Future 2D exports also work offline, using the pinned assets and
+licenses in [ifc_indoor_network/vendor/](ifc_indoor_network/vendor/) without downloads
+at generation time. `floor_plan_3d.html` is also standalone: plotly.js is embedded
+from the installed `plotly` package.
 
 ## Reading the results
 
@@ -59,6 +66,10 @@ Coordinates are IFC world X/Y in metres, shown on a blank canvas. They are **syn
 - `blocked_doorway`: a door whose opening does not clear all overlapping walls.
 - `excluded_placement_inconsistent`: an element placed outside its storey's height range. It is reported but not connected.
 - Room and corridor classification is geometric (based on rectangularity and aspect ratio), not taken from IFC labels.
+- A storey with no supported elements resolved through explicit IFC relationships
+  produces no walking network. Its 3D view displays a "No displayable geometry"
+  notice instead of inventing geometry; inspect `elements.json` and
+  `floor_plan_summary.json` for the extraction counts and footprint availability.
 
 ## Sample-model findings (Level 1)
 

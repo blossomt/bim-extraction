@@ -90,7 +90,7 @@ def print_selected(storey: ifc_reader.StoreyInfo, inv: dict) -> None:
     counts = next(s["element_counts"] for s in inv["storeys"] if s["global_id"] == storey.global_id)
     print(f"\nSelected storey: {storey.name!r}  GlobalId {storey.global_id}")
     print(f"  Elevation: {_fmt(storey.elevation_raw)} {inv['length_unit']['name']} = {_fmt(storey.elevation_m)} m; "
-          f"placement Z {_fmt(storey.placement_z_m)} m")
+          f"placement Z {_fmt(storey.placement_z_m)} m (world Z used for walking height: {_fmt(storey.world_z_m)} m)")
     print("  Element counts (direct = one explicit relationship to the storey; indirect = via space/aggregate/opening/filling):")
     for cat in inv["entity_counts"]:
         c = counts.get(cat, {})
@@ -158,7 +158,7 @@ def print_floor_plan(summary: dict) -> None:
     print(f"\nFloor plan: footprint source = {summary['footprint_source']} (envelope closing {summary['envelope_closing_m']} m)")
     if summary["footprint_unavailable_reason"]:
         print(f"  UNAVAILABLE: {summary['footprint_unavailable_reason']}")
-    print(f"  Footprint: {fp['area_m2']} m2, {fp['components']} components")
+    print(f"  Footprint: {fp['area_m2']} m2, {fp['components']} components; parts {summary['footprint_parts_m2']}")
     print(f"  Obstacles used: {summary['obstacles_used']}; excluded (not spanning walking height): {summary['excluded_not_spanning_walking_height']}")
     print(f"  Door cuts: {summary['door_cuts']}; doors without cut: {len(summary['doors_without_cut'])}")
     for v, s in summary["walkable"].items():
@@ -263,7 +263,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Elements written to {elements_path}")
 
             t_geom = time.time()
-            geom = geometry_processing.extract_geometry(model, extracted, selected.elevation_m or 0.0, config)
+            geom = geometry_processing.extract_geometry(model, extracted, selected.world_z_m, config)
             print(f"\nGeometry extracted in {time.time() - t_geom:.1f}s")
             print_geometry(geom["summary"])
             (args.output_dir / "geometry_summary.json").write_text(json.dumps(geom["summary"], indent=2, default=str))
@@ -295,11 +295,14 @@ def main(argv: list[str] | None = None) -> int:
                 t3 = time.time()
                 meshes = geometry_processing.collect_display_meshes(model, extracted, config.PLOT3D_CATEGORIES, config)
                 idx = storeys.index(selected)
-                z_clip = storeys[idx + 1].elevation_m if idx + 1 < len(storeys) else None
+                z_clip = storeys[idx + 1].world_z_m if idx + 1 < len(storeys) else None
                 path_3d, fig_3d = visualisation.build_3d_view(
-                    meshes, network, conn, selected.name, selected.elevation_m or 0.0, config.PLOT3D_HIDDEN,
+                    meshes, network, conn, selected.name, selected.world_z_m, config.PLOT3D_HIDDEN,
                     args.output_dir / "floor_plan_3d.html", z_clip_m=z_clip,
                 )
+                if not fig_3d.data:
+                    print("WARNING: No displayable geometry or walkable regions for the selected storey; "
+                          "the 3D view contains an empty-result notice.")
                 counts = {k: len(v) for k, v in meshes.items()}
                 print(f"3D view written to {path_3d} ({time.time() - t3:.1f}s; meshes {counts}; "
                       f"{path_3d.stat().st_size / 1e6:.1f} MB)")
