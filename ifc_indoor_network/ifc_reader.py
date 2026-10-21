@@ -33,6 +33,14 @@ class StoreyInfo:
     placement_z_m: float | None  # World Z of the storey placement, in metres
     building: str | None
 
+    @property
+    def world_z_m(self) -> float:
+        """Storey floor in world Z (same datum as meshes and element placements). Elevation is relative to the
+        building, which may itself be placed above zero; fall back to it only without a storey placement."""
+        if self.placement_z_m is not None:
+            return self.placement_z_m
+        return self.elevation_m or 0.0
+
 
 @dataclass
 class Membership:
@@ -630,8 +638,8 @@ def extract_storey_elements(
 
     idx = storeys.index(storey)
     next_storey = storeys[idx + 1] if idx + 1 < len(storeys) else None
-    z_min = (storey.elevation_m or 0.0) - cfg.PLACEMENT_Z_TOLERANCE_M
-    z_max = next_storey.elevation_m - cfg.PLACEMENT_Z_TOLERANCE_M if next_storey else None
+    z_min = storey.world_z_m - cfg.PLACEMENT_Z_TOLERANCE_M
+    z_max = next_storey.world_z_m - cfg.PLACEMENT_Z_TOLERANCE_M if next_storey else None
     placement_flags = {name: _flag_placement(recs, z_min, z_max) for name, recs in cats.items()}
 
     doors, walls, lifts = cats["doors"], cats["walls"], cats["lifts"]

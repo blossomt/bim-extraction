@@ -55,7 +55,9 @@ GEOMETRY_THREADS = os.cpu_count() or 1
 # Door footprint axis minus IFC OverallWidth: deviations from the median offset above this are reported.
 DOOR_WIDTH_CHECK_TOLERANCE_M = 0.15
 
-# Floor footprint = filled outer rings of wall + curtain-wall footprints (reviewed decision: rooms are unreliable).
+# Floor footprint = filled outer rings of wall + curtain-wall + column footprints spanning walking height
+# (reviewed decision: rooms are unreliable; columns added because facade walls often stop at columns).
+ENVELOPE_OBSTACLE_ENTITIES = ["IfcCurtainWall", "IfcColumn"]
 # Morphological closing used ONLY to seal sub-centimetre envelope gaps; 0.02 m is the smallest value sealing Level 1.
 ENVELOPE_CLOSING_M = 0.02
 # Walkable components smaller than this are removed as slivers (logged).

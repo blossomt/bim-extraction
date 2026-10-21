@@ -51,14 +51,27 @@ def test_clean_polygons_drops_slivers():
     assert cleaned.area == pytest.approx(25) and log["slivers_removed"] == 1
 
 
-def _frames(walls, openings=(), doors=()):
+def _frames(walls, openings=(), doors=(), obstacles=()):
     def frame(rows):
         rows = [{"global_id": gid, "entity": ent, "covers_walking_height": True, "geometry": g} for gid, ent, g in rows]
         return gpd.GeoDataFrame(rows or {"geometry": []}, geometry="geometry", crs=None)
     return {
-        "walls": frame(walls), "obstacles": frame([]), "openings": frame(openings), "doors": frame(doors),
+        "walls": frame(walls), "obstacles": frame(obstacles), "openings": frame(openings), "doors": frame(doors),
         "slabs": frame([]), "spaces": frame([]),
     }
+
+
+def test_floor_plan_columns_close_wall_envelope():
+    # Facade walls stop at two columns; without the columns the ring is open and nothing gets filled.
+    ring = shapely.box(0, 0, 10, 10).difference(shapely.box(0.2, 0.2, 9.8, 9.8))
+    walls = ring.difference(shapely.box(4, -1, 6, 1)).difference(shapely.box(4, 9, 6, 11))
+    columns = [("C1", "IfcColumn", shapely.box(4, 0, 6, 0.5)), ("C2", "IfcColumn", shapely.box(4, 9.5, 6, 10))]
+    extracted = {"elements": {"slabs": [], "openings": [], "doors": []}}
+    open_plan = gp.build_floor_plan(_frames(walls=[("W1", "IfcWall", walls)]), extracted, config)["summary"]
+    assert open_plan["footprint"]["area_m2"] < 10
+    plan = gp.build_floor_plan(_frames(walls=[("W1", "IfcWall", walls)], obstacles=columns), extracted, config)["summary"]
+    assert plan["footprint"]["area_m2"] == pytest.approx(100)
+    assert plan["envelope_elements"] == {"walls": 1, "IfcColumn": 2}
 
 
 def test_floor_plan_only_door_openings_open_walls():
@@ -94,13 +107,30 @@ def test_floor_plan_unavailable_without_walls_or_slabs():
     assert plan["summary"]["footprint_unavailable_reason"]
 
 
+def test_floor_plan_footprint_is_union_of_wall_envelope_and_floor_slabs():
+    # Enclosed 10x10 room plus an open (wall-less) 10x10 deck slab next to it; a roof slab must be ignored.
+    ring = shapely.box(0, 0, 10, 10).difference(shapely.box(0.2, 0.2, 9.8, 9.8))
+    frames = _frames(walls=[("W1", "IfcWall", ring)])
+    frames["slabs"] = gpd.GeoDataFrame([
+        {"global_id": "S1", "geometry": shapely.box(10, 0, 20, 10)},
+        {"global_id": "S2", "geometry": shapely.box(-50, -50, -40, -40)},
+    ], geometry="geometry", crs=None)
+    extracted = {"elements": {"slabs": [{"global_id": "S1", "is_floor_candidate": True},
+                                        {"global_id": "S2", "is_floor_candidate": False}], "openings": [], "doors": []}}
+    s = gp.build_floor_plan(frames, extracted, config)["summary"]
+    assert s["footprint_source"] == "wall_envelope_and_floor_slabs"
+    assert s["footprint"]["area_m2"] == pytest.approx(200) and s["footprint"]["components"] == 1
+    assert s["footprint_parts_m2"]["slabs_only"] == pytest.approx(100)
+    assert s["footprint_parts_m2"]["wall_envelope_only"] == pytest.approx(100)
+
+
 @pytest.mark.skipif(not config.IFC_PATH.is_file(), reason="sample IFC not present")
 def test_sample_level1_geometry():
     model = ifc_reader.open_model(config.IFC_PATH)
     membership = ifc_reader.build_membership(model)
     storeys = ifc_reader.list_storeys(model)
     extracted = ifc_reader.extract_storey_elements(model, membership, storeys[0], storeys, config)
-    geom = gp.extract_geometry(model, extracted, storeys[0].elevation_m, config)
+    geom = gp.extract_geometry(model, extracted, storeys[0].world_z_m, config)
     s = geom["summary"]
     assert s["status_by_category"]["walls"] == {"ok": 278}
     assert s["status_by_category"]["doors"] == {"ok": 120}
@@ -113,8 +143,8 @@ def test_sample_level1_geometry():
     assert walls.geometry.is_valid.all() and (walls["area_m2"] > 0).all()
 
     plan = gp.build_floor_plan(geom["frames"], extracted, config)["summary"]
-    assert plan["footprint_source"] == "derived_from_wall_envelope"
-    assert plan["footprint"]["components"] == 1 and plan["footprint"]["area_m2"] > 6000
+    assert plan["footprint_source"] in ("derived_from_wall_envelope", "wall_envelope_and_floor_slabs")
+    assert plan["footprint"]["area_m2"] > 6000
     assert plan["door_cuts"] == {"door_filled_opening": 114, "door_in_curtain_wall": 6}
     assert plan["walkable"]["opening_aware"]["components"] < plan["walkable"]["naive"]["components"]
 
