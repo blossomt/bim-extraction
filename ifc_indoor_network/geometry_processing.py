@@ -284,11 +284,10 @@ def clean_polygons(geom, min_area: float, min_mean_width: float = 0.0) -> tuple[
     return (shapely.union_all(keep) if keep else Polygon()), log
 
 
-def _components_frame(geom, variant: str) -> gpd.GeoDataFrame:
+def _components_frame(geom) -> gpd.GeoDataFrame:
     parts = sorted(shapely.get_parts(geom), key=lambda p: -p.area) if not geom.is_empty else []
     rows = [{
-        "component_id": f"{variant[0].upper()}{i:03d}",  # ordered by descending area
-        "variant": variant,
+        "component_id": f"W{i:03d}",  # ordered by descending area
         "area_m2": round(p.area, 3),
         "holes": len(p.interiors),
         "geometry": p,
@@ -302,7 +301,7 @@ def _polygon_stats(geom) -> dict:
 
 
 def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
-    """Footprint = wall envelope ∪ floor slabs, then naive and opening-aware walkable polygons."""
+    """Footprint = wall envelope ∪ floor slabs; subtract obstacles with host-specific door cuts."""
     grid = cfg.GEOMETRY_GRID_SIZE_M
     walls = _active(frames["walls"])
     obstacles = _active(frames["obstacles"])
@@ -349,18 +348,15 @@ def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
             cut_rows.append({"door_global_id": gid, "door_name": door["name"], "host_global_id": host, "cut_kind": kind, "geometry": cut})
     door_cuts = gpd.GeoDataFrame(cut_rows or {"geometry": []}, geometry="geometry", crs=None)
 
-    # Obstacles: naive = solid; opening-aware = each host minus its own door cuts.
+    # Each host is cut only by its own door openings.
     obstacle_rows = _id_geoms(walls, obstacles)
-    naive_obstacles = shapely.union_all([g for _, g in obstacle_rows], grid_size=grid)
     aware_parts = [
         g.difference(shapely.union_all(cuts_by_host[gid])) if gid in cuts_by_host else g for gid, g in obstacle_rows
     ]
     aware_obstacles = shapely.union_all(aware_parts, grid_size=grid)
 
-    walkable, logs = {}, {}
-    for variant, obst in (("naive", naive_obstacles), ("opening_aware", aware_obstacles)):
-        raw = footprint.difference(obst, grid_size=grid) if not footprint.is_empty else Polygon()
-        walkable[variant], logs[variant] = clean_polygons(raw, cfg.MIN_COMPONENT_AREA_M2, cfg.MIN_COMPONENT_MEAN_WIDTH_M)
+    raw = footprint.difference(aware_obstacles, grid_size=grid) if not footprint.is_empty else Polygon()
+    walkable, log = clean_polygons(raw, cfg.MIN_COMPONENT_AREA_M2, cfg.MIN_COMPONENT_MEAN_WIDTH_M)
 
     # Doorways that stay blocked in the opening-aware result (e.g. another, overlapping element not voided by the opening).
     blocked = []
@@ -400,10 +396,9 @@ def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
         "doors_without_cut": uncut,
         "doorways_still_blocked": blocked,
         "walkable": {
-            v: {**_polygon_stats(walkable[v]), **logs[v],
-                "area_lost_vs_footprint_m2": round(fa - walkable[v].area, 3),
-                "area_lost_pct": round(100 * (fa - walkable[v].area) / fa, 2) if fa else None}
-            for v in walkable
+            **_polygon_stats(walkable), **log,
+            "area_lost_vs_footprint_m2": round(fa - walkable.area, 3),
+            "area_lost_pct": round(100 * (fa - walkable.area) / fa, 2) if fa else None,
         },
         "spaces_comparison": {
             "spaces_area_m2": round(spaces_union.area, 3),
@@ -414,12 +409,10 @@ def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
     out_frames = {
         "footprint": gpd.GeoDataFrame([{"source": source, "area_m2": round(fa, 3), "geometry": footprint}], geometry="geometry", crs=None),
         "door_cuts": door_cuts,
-        "walkable_naive": _components_frame(walkable["naive"], "naive"),
-        "walkable_opening_aware": _components_frame(walkable["opening_aware"], "opening_aware"),
+        "walkable": _components_frame(walkable),
     }
-    return {"frames": out_frames, "geometries": {"footprint": footprint, **{f"walkable_{k}": v for k, v in walkable.items()}}, "summary": summary}
+    return {"frames": out_frames, "geometries": {"footprint": footprint, "walkable": walkable}, "summary": summary}
 
 
 def _id_geoms(*frames) -> list[tuple[str, object]]:
     return [(gid, g) for f in frames if len(f) for gid, g in zip(f["global_id"], f.geometry)]
-

@@ -112,9 +112,7 @@ Handle polygon holes, multipolygons, invalid geometries and small sliver polygon
 
 Use a configurable tolerance for geometric operations. Avoid aggressive buffering or simplification that could eliminate doors, narrow corridors or other valid passages.
 
-**Important:** subtracting full wall footprints can close doorways or openings. If the IFC model explicitly relates openings to host walls, try to preserve those openings in the obstacle geometry. If this is not reliable, make the limitation visible and provide an option to generate both:
-- A naive walkable polygon with full wall footprints subtracted.
-- A version that accounts for explicitly modelled wall openings where feasible.
+**Important (revised 2026-10-22):** generate one opening-aware walkable area, not a separate solid-wall comparison. Preserve door-filled openings in their explicitly related hosts where usable geometry spans walking height; also allow the reviewed curtain-wall aggregated-door exception. Never make window-filled or unfilled openings passable. Report missing cuts and remaining obstructions rather than inferring passages.
 
 Do not silently invent openings for the first version.
 

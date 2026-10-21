@@ -74,7 +74,7 @@ def test_floor_plan_columns_close_wall_envelope():
     assert plan["envelope_elements"] == {"walls": 1, "IfcColumn": 2}
 
 
-def test_floor_plan_only_door_openings_open_walls():
+def test_floor_plan_only_door_openings_open_walls(capsys):
     # Square room with one door opening and one window opening in the wall's west side.
     room = shapely.box(0, 0, 10, 10).difference(shapely.box(0.2, 0.2, 9.8, 9.8))
     corridor_wall = shapely.box(5, 0.2, 5.2, 9.8)  # splits the room in two
@@ -94,10 +94,29 @@ def test_floor_plan_only_door_openings_open_walls():
     plan = gp.build_floor_plan(frames, extracted, config)
     s = plan["summary"]
     assert s["footprint_source"] == "derived_from_wall_envelope"
-    assert s["walkable"]["naive"]["components"] == 2
-    assert s["walkable"]["opening_aware"]["components"] == 1
+    assert s["walkable"]["components"] == 1
+    walkable = plan["geometries"]["walkable"]
+    assert walkable.area == pytest.approx(9.6 * 9.6 - 0.2 * 9.6 + 0.2 * 1.0)
+    assert walkable.covers(shapely.Point(5.1, 2.5))
+    assert not walkable.covers(shapely.Point(5.1, 6.5))
+    assert set(plan["frames"]) == {"footprint", "door_cuts", "walkable"}
+    assert set(plan["geometries"]) == {"footprint", "walkable"}
+    assert "variant" not in plan["frames"]["walkable"]
+    assert "naive" not in s["walkable"] and "opening_aware" not in s["walkable"]
     assert s["door_cuts"] == {"door_filled_opening": 1}
     assert s["doorways_still_blocked"] == []
+
+    import main
+    import network_generation
+
+    net = network_generation.build_network(plan["frames"]["walkable"], plan["frames"]["door_cuts"], config)
+    empty = gpd.GeoDataFrame({"geometry": []}, geometry="geometry", crs=None)
+    conn = network_generation.build_connectors(net, empty, empty, [], config)
+    assert conn["summary"]["doors_by_connection_status"] == {"connected": 1}
+    assert "variant" not in net["summary"]
+    main.print_floor_plan(s)
+    main.print_network(net["summary"])
+    assert "Walkable" in capsys.readouterr().out
 
 
 def test_floor_plan_unavailable_without_walls_or_slabs():
@@ -124,9 +143,8 @@ def test_floor_plan_footprint_is_union_of_wall_envelope_and_floor_slabs():
     assert s["footprint_parts_m2"]["wall_envelope_only"] == pytest.approx(100)
 
 
-@pytest.mark.skipif(not config.IFC_PATH.is_file(), reason="sample IFC not present")
-def test_sample_level1_geometry():
-    model = ifc_reader.open_model(config.IFC_PATH)
+def test_sample_level1_geometry(sample_ifc_path):
+    model = ifc_reader.open_model(sample_ifc_path)
     membership = ifc_reader.build_membership(model)
     storeys = ifc_reader.list_storeys(model)
     extracted = ifc_reader.extract_storey_elements(model, membership, storeys[0], storeys, config)
@@ -146,11 +164,11 @@ def test_sample_level1_geometry():
     assert plan["footprint_source"] in ("derived_from_wall_envelope", "wall_envelope_and_floor_slabs")
     assert plan["footprint"]["area_m2"] > 6000
     assert plan["door_cuts"] == {"door_filled_opening": 114, "door_in_curtain_wall": 6}
-    assert plan["walkable"]["opening_aware"]["components"] < plan["walkable"]["naive"]["components"]
+    assert plan["walkable"]["area_m2"] > 0
 
     import network_generation
     p = gp.build_floor_plan(geom["frames"], extracted, config)
-    net = network_generation.build_network(p["frames"]["walkable_opening_aware"], p["frames"]["door_cuts"], config)
+    net = network_generation.build_network(p["frames"]["walkable"], p["frames"]["door_cuts"], config)
     s = net["summary"]
     assert s["doors_by_status"] == {"open": 118, "blocked": 2}
     assert s["corridors_failed_or_empty"] == []

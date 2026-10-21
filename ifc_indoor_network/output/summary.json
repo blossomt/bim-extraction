@@ -1,0 +1,446 @@
+{
+  "extraction": {
+    "counts": {
+      "walls": 278,
+      "slabs": 0,
+      "spaces": 95,
+      "doors": 120,
+      "openings": 233,
+      "stairs": 14,
+      "stair_flights": 0,
+      "obstacles": 105,
+      "lifts": 38
+    },
+    "walls_by_classification": {
+      "internal": 272,
+      "external": 6
+    },
+    "doors_by_host_status": {
+      "opening_and_host": 114,
+      "no_fills_relationship": 6
+    },
+    "doors_host_on_other_storey": [],
+    "openings_by_filling": {
+      "unfilled": 53,
+      "window": 66,
+      "door": 114
+    },
+    "slab_floor_candidates": 0,
+    "stairs_top_level": 7,
+    "lifts_explicit": 0,
+    "lifts_label_only_by_role": {
+      "cabin": 9,
+      "car_door": 11,
+      "landing_door": 16,
+      "other": 2
+    },
+    "lift_access_point_candidates": 16,
+    "placement_z_window_m": [
+      -0.5,
+      5.596
+    ],
+    "placement_z_outside_storey": {
+      "lifts": [
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0qHgn",
+          "entity": "IfcBuildingElementProxy",
+          "name": "Elevator_LandingDoor2L_2-7:LandingDoor2R:187724",
+          "placement_z_m": 6.0
+        },
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0qHgW",
+          "entity": "IfcBuildingElementProxy",
+          "name": "Elevator_LandingDoor2L_2-5:LandingDoor2L:187741",
+          "placement_z_m": 6.0
+        },
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0qHfd",
+          "entity": "IfcBuildingElementProxy",
+          "name": "Elevator_LandingDoor2L_2-1:LandingDoor2L:187802",
+          "placement_z_m": 6.0
+        },
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0qHfV",
+          "entity": "IfcBuildingElementProxy",
+          "name": "Elevator_LandingDoor2L_2-2:LandingDoor2L:187810",
+          "placement_z_m": 6.0
+        },
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0qHfI",
+          "entity": "IfcBuildingElementProxy",
+          "name": "Elevator_LandingDoor2L_2-3:LandingDoor2L:187823",
+          "placement_z_m": 6.0
+        },
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0qCDS",
+          "entity": "IfcBuildingElementProxy",
+          "name": "Elevator_LandingDoor2L_2-3:LandingDoor2L:197793",
+          "placement_z_m": 6.0
+        },
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0qCDV",
+          "entity": "IfcBuildingElementProxy",
+          "name": "Elevator_CarDoor2L_2-3:CarDoor2L:197794",
+          "placement_z_m": 6.0
+        },
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0qCDP",
+          "entity": "IfcBuildingElementProxy",
+          "name": "Elevator_LandingDoor2L_2-3:LandingDoor2L:197796",
+          "placement_z_m": 6.0
+        },
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0qCDO",
+          "entity": "IfcBuildingElementProxy",
+          "name": "Elevator_CarDoor2L_2-3:CarDoor2L:197797",
+          "placement_z_m": 6.0
+        }
+      ]
+    },
+    "inventory_mismatches": []
+  },
+  "geometry": {
+    "coordinate_frame": "IfcOpenShell world XY, metres (local project coordinates; not geographic)",
+    "walking_height_z_m": 1.0,
+    "status_by_category": {
+      "slabs": {},
+      "spaces": {
+        "ok": 95
+      },
+      "walls": {
+        "ok": 278
+      },
+      "obstacles": {
+        "no_parts_at_walking_height": 2,
+        "ok_from_parts": 10,
+        "ok": 93
+      },
+      "openings": {
+        "ok": 233
+      },
+      "doors": {
+        "ok": 120
+      },
+      "stairs": {
+        "ok": 7,
+        "no_representation": 7
+      },
+      "stair_flights": {},
+      "lifts": {
+        "ok": 38
+      }
+    },
+    "not_covering_walking_height": {
+      "spaces": 0,
+      "walls": 0,
+      "obstacles": 4,
+      "openings": 13,
+      "doors": 0,
+      "stairs": 0,
+      "lifts": 11
+    },
+    "geometry_repairs": [],
+    "door_width_check": {
+      "compared": 120,
+      "median_axis_minus_overall_width_m": 0.15260000000000362,
+      "offset_counts_m": {
+        "0.15": 112,
+        "0.0": 6,
+        "0.61": 2
+      },
+      "outliers": [
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0qCHF",
+          "diff_m": 0.609
+        },
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0qCHE",
+          "diff_m": 0.61
+        },
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0qFED",
+          "diff_m": 0.001
+        },
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0qFE9",
+          "diff_m": -0.0
+        },
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0qFDY",
+          "diff_m": 0.001
+        },
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0q8OV",
+          "diff_m": 0.001
+        },
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0q8NI",
+          "diff_m": 0.001
+        },
+        {
+          "global_id": "1IjDNnD1b6tenKMZR0q8NE",
+          "diff_m": -0.0
+        }
+      ]
+    },
+    "bounds_xy_m": [
+      -12.788,
+      44.565,
+      87.448,
+      136.062
+    ]
+  },
+  "floor_plan": {
+    "footprint_source": "derived_from_wall_envelope",
+    "footprint_unavailable_reason": null,
+    "envelope_closing_m": 0.02,
+    "envelope_elements": {
+      "walls": 278,
+      "IfcCurtainWall": 10,
+      "IfcColumn": 91
+    },
+    "footprint_parts_m2": {
+      "wall_envelope": 6606.648,
+      "floor_slabs": 0.0,
+      "floor_slab_count": 0,
+      "slabs_only": 0.0,
+      "wall_envelope_only": 6606.648
+    },
+    "footprint": {
+      "area_m2": 6606.648,
+      "components": 1,
+      "holes": 0
+    },
+    "obstacles_used": {
+      "walls": 278,
+      "obstacles": 101
+    },
+    "excluded_not_spanning_walking_height": {
+      "walls": 0,
+      "obstacles": 2,
+      "openings": 13
+    },
+    "door_cuts": {
+      "door_filled_opening": 114,
+      "door_in_curtain_wall": 6
+    },
+    "doors_without_cut": [],
+    "doorways_still_blocked": [
+      {
+        "door_global_id": "1IjDNnD1b6tenKMZR0qFDY",
+        "covered_fraction": 1.0,
+        "blocking_elements": [
+          "1IjDNnD1b6tenKMZR0qHny"
+        ]
+      },
+      {
+        "door_global_id": "1IjDNnD1b6tenKMZR0q8OV",
+        "covered_fraction": 1.0,
+        "blocking_elements": [
+          "1IjDNnD1b6tenKMZR0qHnz"
+        ]
+      }
+    ],
+    "walkable": {
+      "area_m2": 6253.158,
+      "components": 51,
+      "holes": 43,
+      "repaired": false,
+      "slivers_removed": 17,
+      "sliver_area_m2": 0.551,
+      "thin_removed": 4,
+      "thin_area_m2": 4.4162,
+      "area_lost_vs_footprint_m2": 353.491,
+      "area_lost_pct": 5.35
+    },
+    "spaces_comparison": {
+      "spaces_area_m2": 2729.042,
+      "spaces_area_outside_footprint_m2": 0.0,
+      "footprint_area_not_in_spaces_m2": 3877.607
+    }
+  },
+  "network": {
+    "pygeoops_version": "0.6.0",
+    "room_rule": {
+      "min_rectangularity": 0.85,
+      "max_aspect": 3.0
+    },
+    "corridor_parameters": {
+      "densify_distance": 0.25,
+      "min_branch_length": 2.0,
+      "simplifytolerance": 0.1,
+      "spur_half_width_factor": 1.5,
+      "spur_max_half_width": 4.0
+    },
+    "runtime_s": 0.81,
+    "region_split": {
+      "repaired": false,
+      "slivers_removed": 1,
+      "sliver_area_m2": 0.0,
+      "thin_removed": 0,
+      "thin_area_m2": 0
+    },
+    "regions": {
+      "corridor": 32,
+      "room": 107
+    },
+    "room_area_m2": 2348.229,
+    "corridor_area_m2": 3882.671,
+    "corridor_status": {
+      "ok": 32
+    },
+    "centreline_components": 32,
+    "centreline_length_m": 1024.657,
+    "room_nodes": 107,
+    "doors_by_status": {
+      "open": 118,
+      "blocked": 2
+    },
+    "doors_by_adjacent_region_count": {
+      "2": 104,
+      "1": 14,
+      "0": 2
+    },
+    "regions_without_doors": [
+      "R016",
+      "R017",
+      "R018",
+      "R020",
+      "R024",
+      "R025",
+      "R040",
+      "R041",
+      "R044",
+      "R053",
+      "R055",
+      "R060",
+      "R061",
+      "R062",
+      "R067",
+      "R069",
+      "R070",
+      "R071",
+      "R072",
+      "R073",
+      "R074",
+      "R075",
+      "R077",
+      "R079",
+      "R099",
+      "R105",
+      "R106",
+      "R108",
+      "R109",
+      "R110",
+      "R111",
+      "R112",
+      "R113",
+      "R114",
+      "R115",
+      "R121",
+      "R122",
+      "R123",
+      "R124",
+      "R125",
+      "R126",
+      "R129",
+      "R133",
+      "R134",
+      "R135",
+      "R136",
+      "R137",
+      "R138"
+    ],
+    "regions_without_doors_by_kind": {
+      "room": 39,
+      "corridor": 9
+    },
+    "corridors_failed_or_empty": []
+  },
+  "connectors": {
+    "max_snap_distance_m": 3.0,
+    "snap_width_margin_m": 1.0,
+    "connectors_over_base_limit_accepted": 29,
+    "doors_by_connection_status": {
+      "connected": 104,
+      "connected_one_side": 14,
+      "blocked_doorway": 2
+    },
+    "connectors_by_kind_status": {
+      "corridor_snap:ok": 141,
+      "room_spoke:ok": 90
+    },
+    "corridor_snap_distance_m": {
+      "mean": 1.99,
+      "max": 7.101
+    },
+    "connectors_too_long": [],
+    "connectors_crossing_non_walkable": [
+      {
+        "source_global_id": "1IjDNnD1b6tenKMZR0qI9i",
+        "kind": "corridor_snap",
+        "length_m": 0.307
+      },
+      {
+        "source_global_id": "1IjDNnD1b6tenKMZR0qCT3",
+        "kind": "corridor_snap",
+        "length_m": 0.135
+      },
+      {
+        "source_global_id": "1IjDNnD1b6tenKMZR0qCIc",
+        "kind": "room_spoke",
+        "length_m": 0.339
+      },
+      {
+        "source_global_id": "1IjDNnD1b6tenKMZR0qCIU",
+        "kind": "room_spoke",
+        "length_m": 0.159
+      },
+      {
+        "source_global_id": "1IjDNnD1b6tenKMZR0qCIR",
+        "kind": "room_spoke",
+        "length_m": 0.148
+      }
+    ],
+    "door_access_points_outside_walkable": [
+      "1IjDNnD1b6tenKMZR0qFDY",
+      "1IjDNnD1b6tenKMZR0q8OV"
+    ],
+    "door_access_point_adjustment_max_m": 0.118,
+    "unconnected_doors": [
+      {
+        "door_global_id": "1IjDNnD1b6tenKMZR0qFDY",
+        "status": "blocked_doorway"
+      },
+      {
+        "door_global_id": "1IjDNnD1b6tenKMZR0q8OV",
+        "status": "blocked_doorway"
+      }
+    ],
+    "lifts": {
+      "access_point_candidates": 16,
+      "identification": {
+        "label_only": 16
+      },
+      "by_connection_status": {
+        "connected": 9,
+        "excluded_placement_inconsistent": 7
+      }
+    },
+    "corridor_regions_without_connectors": [
+      "R024",
+      "R025",
+      "R079",
+      "R129",
+      "R133",
+      "R134",
+      "R135",
+      "R136",
+      "R137"
+    ],
+    "network_components": 14,
+    "network_components_with_doors": 1,
+    "largest_component_doors": 118,
+    "connected_doors": 118
+  }
+}

@@ -30,9 +30,45 @@ def _plan():
     return shapely.union_all([room, door, corridor]), door
 
 
+def test_label_regions_uses_overlapping_ifc_space_label():
+    regions = gpd.GeoDataFrame([
+        {"region_id": "R000", "geometry": shapely.box(0, 0, 4, 4)},
+        {"region_id": "R001", "geometry": shapely.box(10, 0, 14, 4)},  # outside every IfcSpace
+        {"region_id": "R002", "geometry": shapely.box(20, 0, 30, 4)},  # < 50 % inside the space
+    ], geometry="geometry", crs=None)
+    spaces = gpd.GeoDataFrame([
+        {"global_id": "S1", "geometry": shapely.box(-0.1, -0.1, 4.1, 4.1)},
+        {"global_id": "S2", "geometry": shapely.box(20, 0, 22, 4)},
+    ], geometry="geometry", crs=None)
+    records = [{"global_id": "S1", "name": "1", "long_name": "OFFICE"}, {"global_id": "S2", "name": "2", "long_name": None}]
+    assert ng.label_regions(regions, spaces, records) == {"R000": "OFFICE"}
+
+
 def test_rectangle_metrics():
     rect, aspect = ng.rectangle_metrics(shapely.box(0, 0, 4, 2))
     assert rect == pytest.approx(1) and aspect == pytest.approx(2)
+
+
+def test_corner_spurs_pruned_to_single_axis():
+    # Hand-built "T" of centrelines: a long axis with two short corner forks at one end.
+    corridor = shapely.box(0, 0, 30, 3)
+    axis = LineString([(1.5, 1.5), (28.5, 1.5)])
+    forks = [LineString([(28.5, 1.5), (30, 0)]), LineString([(28.5, 1.5), (30, 3)])]
+    pruned = ng.prune_corner_spurs(shapely.MultiLineString([axis, *forks]), corridor, 1.5)
+    assert pruned.geom_type == "LineString" and pruned.length == pytest.approx(27)
+
+
+def test_wide_hall_spurs_are_kept():
+    hall = shapely.box(0, 0, 30, 12)
+    lines = shapely.MultiLineString([LineString([(6, 6), (24, 6)]), LineString([(24, 6), (27, 2)])])
+    assert ng.prune_corner_spurs(lines, hall, 1.5, max_half_width=4.0).length == pytest.approx(18 + 5)
+
+
+def test_long_branch_is_not_pruned():
+    corridor = shapely.union_all([shapely.box(0, 0, 30, 3), shapely.box(14, 3, 17, 20)])
+    lines = shapely.MultiLineString([LineString([(1.5, 1.5), (28.5, 1.5)]), LineString([(15.5, 1.5), (15.5, 19)])])
+    pruned = ng.prune_corner_spurs(lines, corridor, 1.5)
+    assert pruned.length == pytest.approx(27 + 17.5)
 
 
 def test_room_gets_centre_node_and_corridor_gets_centreline():

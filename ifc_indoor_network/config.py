@@ -1,11 +1,8 @@
-"""User-editable defaults. All values can be overridden from the command line."""
+"""User-editable defaults. Storey and output directory have CLI overrides; --ifc is required."""
 
 from pathlib import Path
 import os
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
-IFC_PATH = PROJECT_ROOT / "data" / "20210219Architecture.ifc"
 TARGET_STOREY = "Level 1"
 OUTPUT_DIR = Path(__file__).resolve().parent / "output"
 
@@ -71,7 +68,6 @@ DOORWAY_BLOCKED_FRACTION = 0.5
 
 # Network: the walkable polygon is split at door cuts into regions. Compact near-rectangular regions are
 # "rooms" (one centre node + straight spokes to their doors); all other regions are "corridors" (pygeoops centreline).
-CENTRELINE_VARIANT = "opening_aware"
 ROOM_MIN_RECTANGULARITY = 0.85  # region area / minimum rotated rectangle area
 ROOM_MAX_ASPECT = 3.0  # long / short side of the minimum rotated rectangle
 # pygeoops.centerline parameters for corridor regions (metres). Doorways are not part of corridor regions,
@@ -79,6 +75,11 @@ ROOM_MAX_ASPECT = 3.0  # long / short side of the minimum rotated rectangle
 CORRIDOR_DENSIFY_M = 0.25
 CORRIDOR_MIN_BRANCH_M = 2.0
 CORRIDOR_SIMPLIFY_M = 0.1
+# Leaf branches shorter than this x the local half-width (junction to corridor boundary) are corner/end forks and are
+# pruned, leaving one centreline along the corridor axis. Raise to prune more, 0 to disable.
+CORRIDOR_SPUR_HALF_WIDTH_FACTOR = 1.5
+# Only junctions in corridors up to this half-width are pruned; wide halls keep their branches to reach side doors.
+CORRIDOR_SPUR_MAX_HALF_WIDTH_M = 4.0
 # A region is adjacent to a door if it lies within this distance of the door cut.
 DOOR_ADJACENCY_TOL_M = 0.05
 

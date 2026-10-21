@@ -29,7 +29,7 @@ Default target storey: **Level 1** (95 spaces, 120 doors, 38 lift label candidat
 
 1. **Lift access**: use name-based `Elevator_LandingDoor*` proxies as lift access points, always flagged `identification = label_only`. Other elevator-labelled objects (car doors, cabins, columns) are context only, never access points.
 2. **Extra obstacles**: subtract `IfcCurtainWall` and `IfcColumn` (configurable, separate layers). Railings/furnishings/proxies are not obstacles.
-3. **Wall 2D method** (revised in Phase 3 on evidence): a horizontal section at walking height would open 58 of 66 Level 1 window openings (sills at 0.71 m) and 48 unfilled openings, violating the "never window openings" rule. Instead: walls are meshed **solid** (`disable-opening-subtractions`); naive version = full solid footprints; opening-aware version = solid footprints minus footprints of **door-filled openings that span walking height** (storey elevation + 1.0 m).
+3. **Wall 2D method** (revised in Phase 3 on evidence; simplified 2026-10-22): a horizontal section at walking height would open 58 of 66 Level 1 window openings (sills at 0.71 m) and 48 unfilled openings, violating the "never window openings" rule. Instead: walls are meshed **solid** (`disable-opening-subtractions`); the single opening-aware result subtracts footprints of **door-filled openings that span walking height** (storey world Z + 1.0 m) from their related hosts. The solid-wall comparison has been removed; door eligibility and blockage analysis are unchanged.
 4. **Version control**: git repository; commit at the end of each phase. The large IFC model is git-ignored; Level 1 sample outputs in `ifc_indoor_network/output/` are committed.
 
 ## Decision (reviewed after Phase 2)
@@ -55,7 +55,7 @@ Each phase ends with runnable code, tests passing, and an inspected output. Do n
 
 ### Phase 2 — Semantic element extraction for the selected storey ✅
 - **Depends on**: Phase 1.
-- **Deliverables**: `ifc_reader.py` extraction functions returning plain records (no geometry) for walls (IsExternal → internal/external/unknown), slabs (with predefined type), spaces, doors (opening + host wall via `IfcRelFillsElement`/`IfcRelVoidsElement`), lifts (explicit + label candidates, flagged), stairs (parent/child), candidate obstacles; relevant psets; membership path per element. Written to `output/elements.json`.
+- **Deliverables**: `ifc_reader.py` extraction functions returning plain records (no geometry) for walls (IsExternal → internal/external/unknown), slabs (with predefined type), spaces, doors (opening + host wall via `IfcRelFillsElement`/`IfcRelVoidsElement`), lifts (explicit + label candidates, flagged), stairs (parent/child), candidate obstacles; relevant psets; membership path per element. Written to `output/summary.json` (`extraction`; per-element records are no longer exported).
 - **Validation**: counts match Phase 1 per-storey counts; doors without relationships listed; tests on synthetic model.
 - **Done when**: every record has GlobalId, name, entity, predefined/object type, storey, membership path and extraction status; nothing is assigned to the storey without an explicit relationship.
 
@@ -67,9 +67,9 @@ Each phase ends with runnable code, tests passing, and an inspected output. Do n
 
 ### Phase 4 — Floor footprint and walkable polygons ✅
 - **Depends on**: Phase 3.
-- **Deliverables**: footprint from wall envelope (decision 6) → FLOOR/BASESLAB slabs → unavailable; naive walkable = footprint − solid wall footprints − configured obstacles; opening-aware walkable = footprint − (each host wall/curtain wall minus its own door cuts: door-filled openings spanning walking height, or doors aggregated in curtain walls). Repair (`make_valid`), sliver removal with configurable tolerance, area-loss logging.
-- **Validation**: areas before/after, component counts, doorways visibly open in opening-aware version, no aggressive buffering.
-- **Done when**: both polygons generated for Level 1, layered output inspected, and a non-space storey (e.g. Level 4) reports "footprint unavailable" cleanly.
+- **Deliverables**: footprint = wall envelope ∪ FLOOR/BASESLAB footprints (decision 6), either source alone, or unavailable if neither exists; one walkable area = footprint − (walls and configured obstacles, each host minus its own door cuts: door-filled openings spanning walking height, or doors aggregated in curtain walls). Repair (`make_valid`), sliver removal with configurable tolerance, area-loss logging.
+- **Validation**: areas before/after, component counts, eligible doorways visibly open, no aggressive buffering.
+- **Done when**: the walkable area and layers are inspected, and a storey lacking both footprint sources reports "footprint unavailable" cleanly.
 
 ### Phase 5 — Centreline with pygeoops ✅
 - **Depends on**: Phase 4.

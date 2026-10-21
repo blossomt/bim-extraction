@@ -167,9 +167,8 @@ def test_count_entities_reports_schema_gaps():
     assert counts == {"IfcWall": 0, "IfcMapConversion": None}
 
 
-@pytest.mark.skipif(not config.IFC_PATH.is_file(), reason="sample IFC not present")
-def test_sample_model_inventory():
-    model = ifc_reader.open_model(config.IFC_PATH)
+def test_sample_model_inventory(sample_ifc_path):
+    model = ifc_reader.open_model(sample_ifc_path)
     inv, membership = ifc_reader.build_inventory(model, config.INVENTORY_CATEGORIES, config.LIFT_LABEL_KEYWORDS, 5)
     assert inv["schema"] == "IFC2X3"
     assert inv["length_unit"]["name"] == "FOOT"

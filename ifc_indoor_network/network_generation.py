@@ -72,13 +72,46 @@ def split_regions(walkable, door_cuts: gpd.GeoDataFrame, cfg) -> tuple[list[Poly
     return list(parts), log
 
 
+def prune_corner_spurs(geom, poly: Polygon, factor: float, max_half_width: float = float("inf")):
+    """Remove short leaf branches (medial-axis forks into corridor corners and ends).
+
+    A leaf branch is a spur if it is shorter than `factor` x the local half-width (distance from its junction to the
+    corridor boundary). Only junctions with half-width <= `max_half_width` are pruned: in wide halls the branches
+    are real access paths. At each junction at least one branch is kept. Repeated until stable.
+    """
+    noded = shapely.node(shapely.union_all(geom))
+    edges = [LineString([(round(x, 6), round(y, 6)) for x, y in g.coords])
+             for g in shapely.get_parts(noded) if isinstance(g, LineString) and g.length > 0]
+    boundary = poly.boundary
+    while True:
+        degree = Counter(pt for e in edges for pt in (e.coords[0], e.coords[-1]))
+        spurs: dict[tuple, list[int]] = {}
+        for i, e in enumerate(edges):
+            for leaf, junction in ((e.coords[0], e.coords[-1]), (e.coords[-1], e.coords[0])):
+                if degree[leaf] == 1 and degree[junction] >= 3:
+                    half_width = boundary.distance(Point(junction))
+                    if half_width <= max_half_width and e.length < factor * half_width:
+                        spurs.setdefault(junction, []).append(i)
+                    break
+        drop = set()
+        for junction, idx in spurs.items():
+            idx.sort(key=lambda i: edges[i].length)
+            drop.update(idx[: degree[junction] - 1])
+        if not drop:
+            return shapely.line_merge(shapely.MultiLineString(edges)) if edges else None
+        edges = [e for i, e in enumerate(edges) if i not in drop]
+
+
 def _corridor_centreline(poly: Polygon, cfg):
-    return pygeoops.centerline(
+    raw = pygeoops.centerline(
         poly,
         densify_distance=cfg.CORRIDOR_DENSIFY_M,
         min_branch_length=cfg.CORRIDOR_MIN_BRANCH_M,
         simplifytolerance=cfg.CORRIDOR_SIMPLIFY_M,
     )
+    if raw is None or raw.is_empty:
+        return raw
+    return prune_corner_spurs(raw, poly, cfg.CORRIDOR_SPUR_HALF_WIDTH_FACTOR, cfg.CORRIDOR_SPUR_MAX_HALF_WIDTH_M)
 
 
 def build_network(components: gpd.GeoDataFrame, door_cuts: gpd.GeoDataFrame, cfg) -> dict:
@@ -134,11 +167,12 @@ def build_network(components: gpd.GeoDataFrame, door_cuts: gpd.GeoDataFrame, cfg
     centrelines = _gdf(centreline_rows)
     kinds = Counter(r["kind"] for r in region_rows)
     summary = {
-        "variant": cfg.CENTRELINE_VARIANT,
         "pygeoops_version": pygeoops.__version__,
         "room_rule": {"min_rectangularity": cfg.ROOM_MIN_RECTANGULARITY, "max_aspect": cfg.ROOM_MAX_ASPECT},
         "corridor_parameters": {"densify_distance": cfg.CORRIDOR_DENSIFY_M, "min_branch_length": cfg.CORRIDOR_MIN_BRANCH_M,
-                                "simplifytolerance": cfg.CORRIDOR_SIMPLIFY_M},
+                                "simplifytolerance": cfg.CORRIDOR_SIMPLIFY_M,
+                                "spur_half_width_factor": cfg.CORRIDOR_SPUR_HALF_WIDTH_FACTOR,
+                                "spur_max_half_width": cfg.CORRIDOR_SPUR_MAX_HALF_WIDTH_M},
         "runtime_s": round(time.time() - t0, 2),
         "region_split": split_log,
         "regions": dict(kinds),
@@ -160,6 +194,30 @@ def build_network(components: gpd.GeoDataFrame, door_cuts: gpd.GeoDataFrame, cfg
     }
     return {"regions": regions, "room_nodes": _gdf(room_rows), "centrelines": centrelines, "doors": _gdf(door_rows),
             "walkable": walkable, "summary": summary}
+
+
+def label_regions(regions: gpd.GeoDataFrame, spaces: gpd.GeoDataFrame, space_records: list[dict],
+                  min_overlap: float = 0.5) -> dict[str, str]:
+    """Display-only IFC room purpose per region: the IfcSpace (LongName, else Name) covering most of the region.
+
+    Matched by geometric overlap, so it is a hint for map readers only and never used for storey membership or
+    network logic. Regions with < `min_overlap` of their area inside one IfcSpace stay unlabelled.
+    """
+    if not len(regions) or not len(spaces):
+        return {}
+    labels = {rec["global_id"]: rec.get("long_name") or rec.get("name") for rec in space_records}
+    tree = shapely.STRtree(spaces.geometry.values)
+    out = {}
+    for rid, poly in zip(regions["region_id"], regions.geometry):
+        best, best_area = None, 0.0
+        for j in tree.query(poly, predicate="intersects"):
+            area = poly.intersection(spaces.geometry.iloc[j]).area
+            if area > best_area:
+                best, best_area = spaces["global_id"].iloc[j], area
+        label = labels.get(best)
+        if label and best_area >= min_overlap * poly.area:
+            out[rid] = str(label)
+    return out
 
 
 # --- Phase 6: connectors ---------------------------------------------------------------------

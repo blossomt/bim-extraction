@@ -38,7 +38,6 @@ def _offline_map_header() -> str:
 
 # layer name -> (frame key, style function)
 WALL_COLOURS = {"internal": "#555555", "external": "#000000", "unknown": "#d6008f"}
-OPENING_COLOURS = {"door": "#2ca02c", "window": "#1f77b4", "unfilled": "#999999", "other": "#9467bd"}
 
 
 def _style(fill, line=None, weight=1, opacity=0.5, dash=None):
@@ -49,12 +48,6 @@ def _wall_style(feature):
     cls = feature["properties"]["info"].split(";")[0].split("=")[-1]
     colour = WALL_COLOURS.get(cls, WALL_COLOURS["unknown"])
     return {"fillColor": colour, "color": colour, "weight": 1, "fillOpacity": 0.8}
-
-
-def _opening_style(feature):
-    kind = feature["properties"]["info"].split(";")[0].split("=")[-1]
-    colour = OPENING_COLOURS.get(kind, "#9467bd")
-    return {"fillColor": colour, "color": colour, "weight": 1, "fillOpacity": 0.7}
 
 
 def _lift_style(feature):
@@ -70,20 +63,14 @@ REGION_COLOURS = {"room": "#ffe08a", "corridor": "#9ecae1"}
 
 # (layer name, frame key, style function, shown by default). Prefixes group layers in the layer control.
 LAYERS = [
-    ("Analysis · Floor footprint (wall envelope)", "footprint", _style("#dddddd", "#666666", opacity=0.4), False),
-    ("IFC · Slabs", "slabs", _style("#cccccc", opacity=0.3), False),
-    ("IFC · IfcSpace polygons", "spaces", _style("#fff3b0", "#e0a800", opacity=0.5), False),
-    ("Analysis · Walkable, naive (solid walls)", "walkable_naive", _style("#ff9896", "#d62728", opacity=0.4), False),
-    ("Analysis · Walkable, opening-aware", "walkable_opening_aware", _style("#98df8a", "#2ca02c", opacity=0.5), False),
+    ("Analysis · Walkable area", "walkable", _style("#98df8a", "#2ca02c", opacity=0.5), False),
     ("Network · Regions (rooms / corridors)", "net_regions",
      lambda f: {"fillColor": REGION_COLOURS.get(f["properties"]["kind"], "#cccccc"), "color": "#999999",
                 "weight": 0.5, "fillOpacity": 0.55}, True),
     ("IFC · Walls", "walls", _wall_style, True),
     ("IFC · Columns & curtain walls", "obstacles", _style("#8c564b", opacity=0.7), True),
-    ("IFC · Openings (door / window / unfilled)", "openings", _opening_style, False),
     ("IFC · Doors", "doors", _style("#d62728", opacity=0.6), True),
     ("Analysis · Door cuts in host walls", "door_cuts", _style("#00e5ff", "#008b9c", opacity=0.6), False),
-    ("IFC · Stairs", "stairs", _style("#9467bd", opacity=0.4), True),
     ("IFC · Lift parts (label-only)", "lifts", _lift_style, True),
     ("Network · Corridor centreline (pygeoops)", "net_centrelines", lambda _f: {"color": "#0055ff", "weight": 2.5, "opacity": 0.9}, True),
     ("Network · Connectors", "net_connectors", lambda f: _connector_style(f), True),
@@ -103,18 +90,25 @@ def _connector_style(feature):
 # (layer name, frame key, colour, radius, row filter, shown by default)
 POINT_LAYERS = [
     ("Network · Room nodes", "net_room_nodes", "#e6550d", 4, lambda g: g[g["doors"] > 0], True),
-    ("Network · Doorless room-like regions", "net_room_nodes", "#999999", 3, lambda g: g[g["doors"] == 0], False),
     ("Network · Doorway nodes", "net_door_access", "#2ca02c", 3,
      lambda g: g[g["connection_status"].str.startswith("connected")], True),
     ("Network · Blocked / unconnected doorways", "net_door_access", "#d62728", 6,
      lambda g: g[~g["connection_status"].str.startswith("connected")], True),
     ("Network · Lift access (label-only landing doors)", "net_lift_access", "#9467bd", 6,
      lambda g: g[g["connection_status"] == "connected"], True),
-    ("Network · Lift landing doors excluded (misplaced)", "net_lift_access", "#bbbbbb", 4,
-     lambda g: g[g["connection_status"] != "connected"], False),
 ]
 
-ELEMENT_POPUP_FIELDS = ["name", "global_id", "entity", "storey", "status", "info", "properties"]
+ELEMENT_POPUP_FIELDS = ["name", "global_id", "entity", "info"]
+# Derived (non-IFC-element) layers: identifiers and meaningful quantities only; the first two also form the tooltip.
+DERIVED_POPUP_FIELDS = {
+    "net_regions": ["ifc_space", "region_id", "kind", "area_m2", "doors"],
+    "net_room_nodes": ["ifc_space", "region_id", "doors"],
+    "net_connectors": ["source_name", "kind", "status", "distance_m"],
+    "net_door_access": ["name", "door_global_id", "connection_status"],
+    "net_lift_access": ["name", "lift_global_id", "connection_status"],
+    "door_cuts": ["door_name", "door_global_id", "cut_kind"],
+    "walkable": ["component_id", "area_m2"],
+}
 
 LEGEND = [  # (swatch kind, colour, label)
     ("box", REGION_COLOURS["room"], "Room region (one centre node)"),
@@ -123,7 +117,6 @@ LEGEND = [  # (swatch kind, colour, label)
     ("box", WALL_COLOURS["external"], "External wall"),
     ("box", "#8c564b", "Column / curtain wall"),
     ("box", "#d62728", "Door (IfcDoor)"),
-    ("box", "#9467bd", "Stair"),
     ("box", "#ff7f0e", "Lift landing door (label-only)"),
     ("line", "#0055ff", "Corridor centreline (pygeoops)"),
     ("line", "#e6550d", "Door \u2192 room node"),
@@ -158,13 +151,25 @@ def _panel(css: str, body: str) -> folium.Element:
     )
 
 
-def build_floor_map(frames: dict, storey_name: str, bounds_xy: list[float] | None, summary_lines: list[str], out_path: Path) -> Path:
+STYLE_COLUMNS = {"category", "entity", "kind", "status", "crosses_non_walkable_m", "cut_kind", "source",
+                 "connection_status", "method", "identification"}
+
+
+def _keep(gdf, fields):
+    """Popup fields plus the columns style functions read; everything else stays out of the GeoJSON."""
+    return list(dict.fromkeys(fields + [c for c in gdf.columns if c in STYLE_COLUMNS] + ["geometry"]))
+
+
+def build_floor_map(frames: dict, ifc_name: str, storey_name: str, run_seconds: float, bounds_xy: list[float] | None,
+                    out_path: Path) -> Path:
     m = folium.Map(location=[0, 0], zoom_start=2, crs="Simple", tiles=None, control_scale=False, prefer_canvas=True)
     # This map uses GeoJSON/CircleMarker, not Bootstrap JS or AwesomeMarkers.
     m.default_js = []
     m.default_css = []
     m.get_root().header.add_child(folium.Element(_offline_map_header()), name="offline_assets")
-    m.get_root().header.add_child(folium.Element("<style>.leaflet-container{background:#f4f4f2}</style>"))
+    m.get_root().header.add_child(folium.Element(
+        "<style>.leaflet-container{background:#f4f4f2}"
+        ".leaflet-control-layers{font-size:11px}.leaflet-control-layers label{margin-bottom:1px}</style>"))
 
     for label, key, style, show in LAYERS:
         gdf = frames.get(key)
@@ -174,21 +179,15 @@ def build_floor_map(frames: dict, storey_name: str, bounds_xy: list[float] | Non
         if len(gdf) == 0:
             continue
         is_element = "category" in gdf.columns
-        fields = [f for f in ELEMENT_POPUP_FIELDS if f in gdf.columns] if is_element else [c for c in gdf.columns if c != "geometry"]
+        if is_element:
+            fields = [f for f in ELEMENT_POPUP_FIELDS if f in gdf.columns]
+        else:
+            fields = [f for f in DERIVED_POPUP_FIELDS.get(key, []) if f in gdf.columns] or [c for c in gdf.columns if c != "geometry"]
         folium.GeoJson(
-            gdf[fields + ["geometry"]].to_json(), name=f"{label} ({len(gdf)})", show=show, style_function=style,
+            gdf[_keep(gdf, fields)].to_json(), name=f"{label} ({len(gdf)})", show=show, style_function=style,
             tooltip=folium.GeoJsonTooltip(fields=["name"] if is_element else fields[:2], labels=not is_element),
             popup=folium.GeoJsonPopup(fields=fields, max_width=420),
         ).add_to(m)
-
-    points = frames.get("door_points")
-    if points is not None and len(points):
-        folium.GeoJson(points.to_json(), name=f"Analysis · Door footprint centres ({len(points)})", show=False,
-                       marker=folium.CircleMarker(radius=2, color="#d62728", fill=True)).add_to(m)
-    lines = frames.get("door_lines")
-    if lines is not None and len(lines):
-        folium.GeoJson(lines.to_json(), name=f"Analysis · Door axes ({len(lines)})", show=False,
-                       style_function=lambda _f: {"color": "#d62728", "weight": 3}).add_to(m)
 
     for label, key, colour, radius, select, show in POINT_LAYERS:
         gdf = frames.get(key)
@@ -197,9 +196,9 @@ def build_floor_map(frames: dict, storey_name: str, bounds_xy: list[float] | Non
         gdf = select(gdf)
         if len(gdf) == 0:
             continue
-        fields = [c for c in gdf.columns if c != "geometry"]
+        fields = [f for f in DERIVED_POPUP_FIELDS.get(key, []) if f in gdf.columns] or [c for c in gdf.columns if c != "geometry"]
         folium.GeoJson(
-            gdf.to_json(), name=f"{label} ({len(gdf)})", show=show,
+            gdf[_keep(gdf, fields)].to_json(), name=f"{label} ({len(gdf)})", show=show,
             marker=folium.CircleMarker(radius=radius, color="white", weight=1, fill=True, fill_color=colour, fill_opacity=1),
             tooltip=folium.GeoJsonTooltip(fields=fields[:2]),
             popup=folium.GeoJsonPopup(fields=fields, max_width=420),
@@ -213,20 +212,14 @@ def build_floor_map(frames: dict, storey_name: str, bounds_xy: list[float] | Non
     root = m.get_root().html
     root.add_child(_panel(
         "top:10px;left:60px;max-width:46vw",
-        f"<b style='font-size:13px'>{html.escape(storey_name)} — indoor walking network (prototype)</b><br>"
+        f"<b style='font-size:13px'>Indoor walking network (prototype)</b><br>"
+        f"Source file: <code>{html.escape(ifc_name)}</code><br>"
+        f"Storey: <code>{html.escape(storey_name)}</code><br>"
+        f"Run time: {run_seconds:.0f} seconds<br>"
         f"<i style='color:#555'>{SYNTHETIC_NOTE}</i>",
     ))
     root.add_child(_panel("bottom:20px;right:10px;max-height:55vh;overflow:auto",
                           f"<details open><summary><b>Legend</b></summary>{_legend_html()}</details>"))
-    lines_html = "".join(f"<li>{html.escape(s)}</li>" for s in summary_lines)
-    root.add_child(_panel(
-        "bottom:20px;left:10px;max-width:340px;max-height:45vh;overflow:auto",
-        f"<details open><summary><b>Processing summary</b></summary>"
-        f"<ul style='margin:4px 0;padding-left:16px'>{lines_html}</ul>"
-        f"<div style='color:#666'>Click any element for IFC GlobalId, properties and status. "
-        f"Layers (top right): IFC = model elements, Analysis = intermediate geometry, Network = derived walking graph.</div>"
-        f"</details>",
-    ))
     out_path.parent.mkdir(parents=True, exist_ok=True)
     m.save(str(out_path))
     return out_path
@@ -376,72 +369,3 @@ def build_3d_view(meshes: dict, network: dict, connectors: dict, storey_name: st
     fig.write_html(str(out_path), include_plotlyjs=True)  # embed plotly.js so the file works offline
     return out_path, fig
 
-
-# --- Static 2D figure (for reports / README; needs kaleido + Chrome for PNG export) ---------------
-
-
-def _fill_trace(geoms, colour: str, name: str, line_colour: str | None = None, opacity: float = 1.0) -> go.Scatter | None:
-    xs, ys = [], []
-    for g in geoms:
-        for poly in shapely.get_parts(g):
-            if poly.is_empty or poly.geom_type != "Polygon":
-                continue
-            c = np.asarray(poly.exterior.coords)
-            xs.extend(list(c[:, 0]) + [None]); ys.extend(list(c[:, 1]) + [None])
-    if not xs:
-        return None
-    return go.Scatter(x=xs, y=ys, fill="toself", fillcolor=colour, mode="lines", opacity=opacity, name=name,
-                      line={"color": line_colour or colour, "width": 0.5}, hoverinfo="skip")
-
-
-def build_2d_figure(frames: dict, storey_name: str) -> go.Figure:
-    regions = frames["net_regions"]
-    walls = frames["walls"]
-    conn = frames["net_connectors"]
-    doors = frames["net_door_access"]
-    traces = [
-        _fill_trace(regions[regions["kind"] == "room"].geometry, REGION_COLOURS["room"], "room region"),
-        _fill_trace(regions[regions["kind"] == "corridor"].geometry, REGION_COLOURS["corridor"], "corridor region"),
-        _fill_trace(walls.geometry, WALL_COLOURS["internal"], "walls"),
-        _fill_trace(frames["obstacles"].geometry, "#8c564b", "columns / curtain walls"),
-        _fill_trace(frames["stairs"].geometry, "#9467bd", "stairs", opacity=0.6),
-    ]
-    for kind, colour, label in (("room_spoke", "#e6550d", "door \u2192 room node"),
-                                ("corridor_snap", "#2ca02c", "door \u2192 corridor centreline")):
-        t = _line_trace(conn[conn["kind"] == kind].geometry, 0, colour, label, 2) if len(conn) else None
-        if t is not None:
-            traces.append(go.Scatter(x=t.x, y=t.y, mode="lines", name=label, line={"color": colour, "width": 1.5}))
-    cl = _line_trace(frames["net_centrelines"].geometry, 0, "#0055ff", "corridor centreline")
-    if cl is not None:
-        traces.append(go.Scatter(x=cl.x, y=cl.y, mode="lines", name="corridor centreline (pygeoops)",
-                                 line={"color": "#0055ff", "width": 2}))
-    nodes = frames["net_room_nodes"]
-    nodes = nodes[nodes["doors"] > 0]
-    traces.append(go.Scatter(x=nodes.geometry.x, y=nodes.geometry.y, mode="markers", name="room node",
-                             marker={"color": "#e6550d", "size": 6, "line": {"color": "white", "width": 1}}))
-    ok = doors[doors["connection_status"].str.startswith("connected")]
-    bad = doors[~doors["connection_status"].str.startswith("connected")]
-    traces.append(go.Scatter(x=ok.geometry.x, y=ok.geometry.y, mode="markers", name="doorway node",
-                             marker={"color": "#2ca02c", "size": 4}))
-    if len(bad):
-        traces.append(go.Scatter(x=bad.geometry.x, y=bad.geometry.y, mode="markers", name="blocked doorway",
-                                 marker={"color": "#d62728", "size": 9, "symbol": "x"}))
-    lifts = frames["net_lift_access"]
-    lifts = lifts[lifts["connection_status"] == "connected"]
-    if len(lifts):
-        traces.append(go.Scatter(x=lifts.geometry.x, y=lifts.geometry.y, mode="markers", name="lift access (label-only)",
-                                 marker={"color": "#9467bd", "size": 9, "symbol": "square"}))
-    fig = go.Figure([t for t in traces if t is not None])
-    fig.update_layout(
-        title=f"{storey_name} \u2014 derived walking network (synthetic local coordinates, metres)",
-        xaxis={"title": "X (m)", "scaleanchor": "y", "showgrid": False, "zeroline": False},
-        yaxis={"title": "Y (m)", "showgrid": False, "zeroline": False},
-        plot_bgcolor="white", paper_bgcolor="white", legend={"bgcolor": "rgba(255,255,255,0.85)"},
-        margin={"l": 50, "r": 10, "t": 50, "b": 40},
-    )
-    return fig
-
-
-def export_png(fig: go.Figure, path: Path, width: int, height: int, scale: float = 1.5) -> Path:
-    fig.write_image(str(path), width=width, height=height, scale=scale)
-    return path

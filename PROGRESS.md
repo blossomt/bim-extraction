@@ -4,6 +4,45 @@
 
 ## Completed
 
+### CLI follow-up — Explicit IFC input required (2026-10-22)
+- Made `--ifc` mandatory, including inventory-only runs; removed `IFC_PATH` and its unused root constant from configuration. No input model is selected implicitly.
+- Updated [README.md](README.md) commands and relative-path guidance. Sample integration tests use a test-only fixture pointing at `ifc_indoor_network/data/20210219Architecture.ifc`, independent of application configuration.
+- Validation: 33 passed, 2 skipped (sample absent at the integration-fixture location); missing-input cases exit with argparse's required-argument error, and explicit paths are preserved. No IDE errors in changed Python files. No outputs regenerated.
+
+### README flow diagram simplification (2026-10-22)
+- Mermaid extraction flow reduced from 12 to 7 nodes in plain, active wording (read model and pick storey; identify floor boundary; identify doors in walls; identify rooms and corridor-like regions; create centre nodes and centrelines; connect doors and lifts; output 2D/3D map). Display-mesh, inventory and PNG nodes removed.
+- Folium layer-control font reduced to 11 px; layer order left unchanged (draw order matters: region fills must sit under walls/doors/connectors).
+
+### Map header, popups, elements.json removal (2026-10-22)
+- Folium header is now: title "Indoor walking network (prototype)", then `Source file`, `Storey`, `Run time` (seconds up to the map build; the 3D view is built afterwards) and the synthetic-coordinates note. The key-parameters subheader and `main.map_parameters` were dropped. `build_floor_map(frames, ifc_name, storey_name, run_seconds, bounds_xy, out_path)`.
+- `output/elements.json` is no longer written (nothing read it). The extraction summary moved into `summary.json` under `extraction`; the per-element storey-membership paths are no longer exported (they remain in the in-memory extraction result).
+- Popups: per-layer field lists in `visualisation.DERIVED_POPUP_FIELDS` (regions: `ifc_space`, `region_id`, `kind`, `area_m2`, `doors`; no rectangularity/aspect/holes/status). GeoJSON carries only popup and style columns.
+- New `network_generation.label_regions`: region → IfcSpace label (LongName, else Name) by largest overlap, requiring ≥ 50 % of the region inside the space. Display-only; unmatched regions show "—". The label can be inexact where the model's spaces and the geometric regions disagree.
+
+### Map header and PNG removal (2026-10-22)
+- Folium map: removed the "Processing summary" panel and `map_summary_lines`; the header now shows the source IFC file name, with a subheader of key parameters (storey, walking height, room rule, spur pruning, snap limit) from `main.map_parameters`. `build_floor_map(frames, ifc_name, parameters, bounds_xy, out_path)`.
+- Removed `--export-images`, `build_2d_figure`, `export_png` and the `kaleido` requirement; `output/floor_plan_{2d,3d}.png` deleted. `docs/images/*.png` remain as static README screenshots (not regenerated).
+
+### Output and centreline simplification (2026-10-22)
+- Outputs: the four per-stage summaries are now one `summary.json` (`geometry`, `floor_plan`, `network`, `connectors`). `inventory.json` and `elements.json` are unchanged; PNGs only with `--export-images`.
+- Folium: removed footprint, slabs, IfcSpace, openings, stairs, door-centre/axis, doorless-room and excluded-lift layers (still available in `summary.json`/`elements.json`); popups show name, GlobalId, entity and class only; legend drops stairs. 2D PNG drops stairs. 3D view unchanged.
+- Corridor centrelines: new `prune_corner_spurs` in `network_generation.py` removes leaf forks shorter than `CORRIDOR_SPUR_HALF_WIDTH_FACTOR` (1.5) × local half-width, only where half-width ≤ `CORRIDOR_SPUR_MAX_HALF_WIDTH_M` (4.0). Tuned on Level 1: pygeoops `min_branch_length` alone left junctions at 8 m; uncapped pruning (factor 1.5–3) cut centrelines to ~830–900 m but stranded wide-hall doors (5–18 too-long connectors, 3 components with doors). Chosen settings: centreline 1336 → 1025 m, 0 too-long connectors, 118 of 118 connected doors in one component.
+- Known trade-off: branches in wide halls (> 4 m half-width) are not pruned, so some branching remains there.
+- Validation: 51 passed (sample integration tests now run against `ifc_indoor_network/data/`). Level 1 outputs and `docs/images` regenerated; old four summary files removed.
+
+### Phases 4–7 follow-up — One walkable area; simpler documentation (2026-10-22)
+- Revised [README.md](README.md) to explain walkable area upfront in plain language: the Z check filters elements spanning walking height; it is not a horizontal section. Added venv activation commands and placed detailed method rules behind an expandable section. Configuration details remain in `config.py`.
+- Removed the solid-wall comparison, `CENTRELINE_VARIANT`, variant metadata and duplicate 2D layer. Geometry, CLI, map summaries and network generation now use one `walkable` result; `floor_plan_summary.json` contains flat walkable statistics. Updated the related requirement and plan.
+- Door eligibility, missing-cut reporting, blocked-doorway analysis and connector behavior remain unchanged, as confirmed with the user. Window openings remain impassable.
+- Validation: focused geometry/network/visualisation suite passes (23 passed, 1 skipped: original sample IFC absent); regression checks cover exact walkable area, door/window passage behavior, single-result shape, network connections, console/map summaries and the exported layer. No IDE errors in changed Python files.
+- Existing user-generated outputs and historical sample exports were not overwritten. They retain their previous layers/summary structure until regenerated. No later phase implemented; Phase 8 and Phase 10 remain pending.
+
+### Phase 7 documentation follow-up — Extraction method and configuration (2026-10-22)
+- Expanded [README.md](README.md) with a Mermaid extraction-flow diagram, method/terminology and assumption/limitation tables, and a grouped configuration reference checked against the implementation.
+- Distinguished explicit IFC relationships from derived geometric adjacency, geometric room/corridor classes from space-use classifications, and analysis meshes from 3D display meshes.
+- Documented current limitations: storey-datum fallbacks, unfiltered slab elevations, envelope void filling, report-only connector crossings, and differing floor-plan/network blockage criteria. Historical sample results are explicitly qualified; no model outputs were regenerated.
+- Validation: documentation cross-checked against the pipeline, semantic extraction, geometry, network, visualisation and configuration sources; no runtime behavior changed. Phase 8 and Phase 10 remain pending; this is not an acceptance review.
+
 ### Phase 9 follow-up — Offline 3D view (2026-10-21)
 - `build_3d_view()` writes with `include_plotlyjs=True`, so plotly.js (from the installed `plotly` 7.1.0 package, plotly.js 4.1.1) is embedded and `floor_plan_3d.html` needs no network access. Cost: about +4.6 MB per file.
 - The embedded bundle still contains Plotly's default topojson URL (`cdn.plot.ly/un/`). Only geographic map traces use it; the 3D view has none.
@@ -99,7 +138,7 @@
 - Openings: `filling_kind` door / window / other / unfilled (only door openings may open walls later).
 - Lifts: `identification` explicit_ifc / label_only, `role` landing_door / car_door / cabin / other, `is_access_point_candidate` only for names matching `^Elevator_LandingDoor`.
 - Placement-Z check (report only): flags elements placed outside `[elevation − 0.5 m, next elevation − 0.5 m)`.
-- `main.py` prints the summary, cross-checks counts against the Phase 1 inventory and writes `output/elements.json`.
+- `main.py` prints the summary, cross-checks counts against the Phase 1 inventory and records the summary under `extraction` in `output/summary.json`.
 - Level 1 result: 278 walls (272 internal, 6 external), 0 slabs, 95 spaces, 120 doors (114 with opening+host, 6 curtain-wall doors without), 233 openings (114 door, 66 window, 53 unfilled), 14 stairs (7 top-level), 105 obstacles (93 columns, 12 curtain walls), 38 lift label candidates (16 landing doors → 9 at floor level, 7 flagged at Z ≈ 6.0 m). Cross-check OK (also Levels 4 and 7).
 
 ### Phase 1 — Environment, IFC inspection, storey inventory (2026-10-21)

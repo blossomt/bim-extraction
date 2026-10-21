@@ -1371,10 +1371,5 @@
     },
     "note": "Label candidates are matched on name text only and are not confirmed lifts."
   },
-  "ifc_path": "/Users/blossomtang/Documents/Productive Experiments/bim-extraction/data/20210219Architecture.ifc",
-  "selection": {
-    "requested_name": "Level 1",
-    "requested_id": null,
-    "selected_global_id": "248gkaFu11TgGGHnDbO3GV"
-  }
+  "ifc_path": "data\\20210219Architecture.ifc"
 }

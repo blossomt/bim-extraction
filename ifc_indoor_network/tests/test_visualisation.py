@@ -35,8 +35,8 @@ def test_build_floor_map_is_standalone(tmp_path, monkeypatch):
         "region_id": "R1", "doors": 1, "geometry": shapely.Point(1, 1),
     }], geometry="geometry", crs=None)
     out = visualisation.build_floor_map(
-        {"doors": doors, "net_room_nodes": nodes}, "Test", [0, 0, 4, 4],
-        ["Offline test"], tmp_path / "nested" / "floor_plan.html",
+        {"doors": doors, "net_room_nodes": nodes, "walkable": doors}, "model.ifc", "Level 9", 12.4,
+        [0, 0, 4, 4], tmp_path / "nested" / "floor_plan.html",
     )
     text = out.read_text(encoding="utf-8")
     resources = _Resources()
@@ -47,9 +47,12 @@ def test_build_floor_map_is_standalone(tmp_path, monkeypatch):
     assert "jQuery v3.7.1" in text
     assert re.search(r"Bootstrap\s+v5\.2\.2", text)
     assert "data:image/png;base64," in text
-    assert "D1" in text and "FireRating=60" in text
+    assert "D1" in text and "FireRating=60" not in text
     assert "L.control.layers(" in text and "new L.CircleMarker(" in text
-    assert "Offline test" in text and "not geographic" in text
+    assert "model.ifc" in text and "Level 9" in text and "Run time: 12 seconds" in text and "not geographic" in text
+    assert "Processing summary" not in text
+    assert r"Analysis \u00b7 Walkable area" in text
+    assert "naive" not in text and "opening_aware" not in text
 
 
 def test_build_3d_view(tmp_path):
