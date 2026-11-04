@@ -197,6 +197,63 @@ def print_connectors(summary: dict) -> None:
           f"largest holds {summary['largest_component_doors']} of {summary['connected_doors']} connected doors")
 
 
+def run_storey_pipeline(model, membership, selected: ifc_reader.StoreyInfo, storeys: list, inv: dict,
+                        args: argparse.Namespace, t0: float) -> None:
+    """Phases 2-7 and 9 for one storey; writes summary.json, floor_plan.html and (unless --no-3d) floor_plan_3d.html."""
+    print_selected(selected, inv)
+    extracted = ifc_reader.extract_storey_elements(model, membership, selected, storeys, config)
+    extracted["summary"]["inventory_mismatches"] = print_extraction(extracted, inv)
+
+    t_geom = time.time()
+    geom = geometry_processing.extract_geometry(model, extracted, selected.world_z_m, config)
+    print(f"\nGeometry extracted in {time.time() - t_geom:.1f}s")
+    print_geometry(geom["summary"])
+    plan = geometry_processing.build_floor_plan(geom["frames"], extracted, config)
+    print_floor_plan(plan["summary"])
+    network = network_generation.build_network(plan["frames"]["walkable"], plan["frames"]["door_cuts"], config)
+    print_network(network["summary"])
+    labels = network_generation.label_regions(network["regions"], geom["frames"]["spaces"], extracted["elements"]["spaces"])
+    for key in ("regions", "room_nodes"):
+        if len(network[key]):
+            network[key]["ifc_space"] = network[key]["region_id"].map(labels).fillna("—")
+    conn = network_generation.build_connectors(
+        network, geom["frames"]["door_points"], geom["frames"]["lifts"], extracted["elements"]["lifts"], config
+    )
+    print_connectors(conn["summary"])
+    summary_path = args.output_dir / "summary.json"
+    summary_path.write_text(json.dumps({
+        "extraction": extracted["summary"], "geometry": geom["summary"], "floor_plan": plan["summary"],
+        "network": network["summary"], "connectors": conn["summary"],
+    }, indent=2, default=str))
+    print(f"Stage summaries written to {summary_path}")
+    net_frames = {f"net_{k}": v for k, v in {**network, **conn}.items() if k not in ("summary", "walkable")}
+    map_path = visualisation.build_floor_map(
+        {**geom["frames"], **plan["frames"], **net_frames}, args.ifc.name, selected.name, time.time() - t0,
+        geom["summary"]["bounds_xy_m"], args.output_dir / "floor_plan.html",
+    )
+    print(f"Map written to {map_path}")
+    if not args.no_3d:
+        write_3d_view(model, extracted, network, conn, selected, storeys, args.output_dir)
+    print("\nPhases 1-7 and 9 done; consolidated diagnostics report (Phase 8) not implemented yet.")
+
+
+def write_3d_view(model, extracted: dict, network: dict, conn: dict, selected: ifc_reader.StoreyInfo, storeys: list,
+                  output_dir: Path) -> None:
+    t3 = time.time()
+    meshes = geometry_processing.collect_display_meshes(model, extracted, config.PLOT3D_CATEGORIES, config)
+    idx = storeys.index(selected)
+    z_clip = storeys[idx + 1].world_z_m if idx + 1 < len(storeys) else None
+    path_3d, fig_3d = visualisation.build_3d_view(
+        meshes, network, conn, selected.name, selected.world_z_m, config.PLOT3D_HIDDEN,
+        output_dir / "floor_plan_3d.html", z_clip_m=z_clip,
+    )
+    if not fig_3d.data:
+        print("WARNING: No displayable geometry or walkable regions for the selected storey; "
+              "the 3D view contains an empty-result notice.")
+    counts = {k: len(v) for k, v in meshes.items()}
+    print(f"3D view written to {path_3d} ({time.time() - t3:.1f}s; meshes {counts}; {path_3d.stat().st_size / 1e6:.1f} MB)")
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     t0 = time.time()
@@ -214,73 +271,21 @@ def main(argv: list[str] | None = None) -> int:
     print_inventory(inv)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    out_path = args.output_dir / "inventory.json"
-
     exit_code = 0
     if not args.list_storeys:
         storeys = ifc_reader.list_storeys(model)
+        request = {"requested_name": args.storey, "requested_id": args.storey_id}
         try:
             selected = ifc_reader.select_storey(storeys, args.storey, args.storey_id)
         except ifc_reader.StoreySelectionError as e:
             print(f"\nERROR: {e}", file=sys.stderr)
-            inv["selection"] = {"requested_name": args.storey, "requested_id": args.storey_id, "error": str(e)}
+            inv["selection"] = {**request, "error": str(e)}
             exit_code = 2
         else:
-            print_selected(selected, inv)
-            inv["selection"] = {"requested_name": args.storey, "requested_id": args.storey_id, "selected_global_id": selected.global_id}
-            extracted = ifc_reader.extract_storey_elements(model, membership, selected, storeys, config)
-            extracted["summary"]["inventory_mismatches"] = print_extraction(extracted, inv)
+            inv["selection"] = {**request, "selected_global_id": selected.global_id}
+            run_storey_pipeline(model, membership, selected, storeys, inv, args, t0)
 
-            t_geom = time.time()
-            geom = geometry_processing.extract_geometry(model, extracted, selected.world_z_m, config)
-            print(f"\nGeometry extracted in {time.time() - t_geom:.1f}s")
-            print_geometry(geom["summary"])
-            plan = geometry_processing.build_floor_plan(geom["frames"], extracted, config)
-            print_floor_plan(plan["summary"])
-            network = network_generation.build_network(
-                plan["frames"]["walkable"], plan["frames"]["door_cuts"], config
-            )
-            print_network(network["summary"])
-            labels = network_generation.label_regions(
-                network["regions"], geom["frames"]["spaces"], extracted["elements"]["spaces"])
-            for key in ("regions", "room_nodes"):
-                frame = network[key]
-                if len(frame):
-                    frame["ifc_space"] = frame["region_id"].map(labels).fillna("—")
-            conn = network_generation.build_connectors(
-                network, geom["frames"]["door_points"], geom["frames"]["lifts"], extracted["elements"]["lifts"], config
-            )
-            print_connectors(conn["summary"])
-            summary_path = args.output_dir / "summary.json"
-            summary_path.write_text(json.dumps({
-                "extraction": extracted["summary"], "geometry": geom["summary"], "floor_plan": plan["summary"],
-                "network": network["summary"], "connectors": conn["summary"],
-            }, indent=2, default=str))
-            print(f"Stage summaries written to {summary_path}")
-            net_frames = {f"net_{k}": v for k, v in {**network, **conn}.items() if k not in ("summary", "walkable")}
-            all_frames = {**geom["frames"], **plan["frames"], **net_frames}
-            map_path = visualisation.build_floor_map(
-                all_frames, args.ifc.name, selected.name, time.time() - t0, geom["summary"]["bounds_xy_m"],
-                args.output_dir / "floor_plan.html",
-            )
-            print(f"Map written to {map_path}")
-            if not args.no_3d:
-                t3 = time.time()
-                meshes = geometry_processing.collect_display_meshes(model, extracted, config.PLOT3D_CATEGORIES, config)
-                idx = storeys.index(selected)
-                z_clip = storeys[idx + 1].world_z_m if idx + 1 < len(storeys) else None
-                path_3d, fig_3d = visualisation.build_3d_view(
-                    meshes, network, conn, selected.name, selected.world_z_m, config.PLOT3D_HIDDEN,
-                    args.output_dir / "floor_plan_3d.html", z_clip_m=z_clip,
-                )
-                if not fig_3d.data:
-                    print("WARNING: No displayable geometry or walkable regions for the selected storey; "
-                          "the 3D view contains an empty-result notice.")
-                counts = {k: len(v) for k, v in meshes.items()}
-                print(f"3D view written to {path_3d} ({time.time() - t3:.1f}s; meshes {counts}; "
-                      f"{path_3d.stat().st_size / 1e6:.1f} MB)")
-            print("\nPhases 1-7 and 9 done; consolidated diagnostics report (Phase 8) not implemented yet.")
-
+    out_path = args.output_dir / "inventory.json"
     out_path.write_text(json.dumps(inv, indent=2, default=str))
     print(f"\nInventory written to {out_path}  ({time.time() - t0:.1f}s total)")
     return exit_code

@@ -230,11 +230,17 @@ def summarise_unassigned(membership: dict[str, Membership], limit: int = 50) -> 
     }
 
 
-def _predefined_type(element):
+def _predefined(element) -> tuple[str, object] | None:
+    """(attribute name, value) of the first of PredefinedType / OperationType / ShapeType the entity has."""
     for attr in ("PredefinedType", "OperationType", "ShapeType"):
         if hasattr(element, attr):
-            return f"{attr}={getattr(element, attr)}"
+            return attr, getattr(element, attr)
     return None
+
+
+def _predefined_type(element):
+    found = _predefined(element)
+    return f"{found[0]}={found[1]}" if found else None
 
 
 def summarise_labels(model: ifcopenshell.file, category: str, top_n: int) -> dict | None:
@@ -305,6 +311,14 @@ def _transport_kind(element) -> str | None:
     return None
 
 
+def _has_lift_label(element, keywords: list[str]) -> bool:
+    """True if the name, ObjectType or type name starts a word with one of the keywords (label-only evidence)."""
+    pattern = re.compile(r"\b(" + "|".join(re.escape(k) for k in keywords) + r")", re.IGNORECASE)
+    t = ue.get_type(element)
+    labels = [element.Name, getattr(element, "ObjectType", None), t.Name if t is not None else None]
+    return any(lbl and pattern.search(lbl) for lbl in labels)
+
+
 def find_lift_candidates(model: ifcopenshell.file, membership: dict[str, Membership], keywords: list[str]) -> dict:
     """Explicit lifts (IfcTransportElement ELEVATOR) and separately, label-only candidates."""
     explicit = []
@@ -323,15 +337,13 @@ def find_lift_candidates(model: ifcopenshell.file, membership: dict[str, Members
             }
         )
 
-    pattern = re.compile(r"\b(" + "|".join(re.escape(k) for k in keywords) + r")", re.IGNORECASE)
     label_candidates = []
     transport_ids = {e["global_id"] for e in explicit}
     for e in model.by_type("IfcElement"):
         if e.GlobalId in transport_ids:
             continue
-        t = ue.get_type(e)
-        labels = [e.Name, getattr(e, "ObjectType", None), t.Name if t is not None else None]
-        if any(lbl and pattern.search(lbl) for lbl in labels):
+        if _has_lift_label(e, keywords):
+            t = ue.get_type(e)
             m = membership.get(e.GlobalId)
             label_candidates.append(
                 {
@@ -425,11 +437,8 @@ def build_inventory(model: ifcopenshell.file, categories: list[str], lift_keywor
 
 
 def _predefined_value(element):
-    for attr in ("PredefinedType", "OperationType", "ShapeType"):
-        if hasattr(element, attr):
-            value = getattr(element, attr)
-            return str(value) if value is not None else None
-    return None
+    found = _predefined(element)
+    return str(found[1]) if found and found[1] is not None else None
 
 
 def _selected_psets(element, extra: list[str]) -> dict:
@@ -625,11 +634,8 @@ def extract_storey_elements(
     }
 
     lift_elements = {e.GlobalId: e for e in elements("IfcTransportElement")}
-    keyword_re = re.compile(r"\b(" + "|".join(re.escape(k) for k in cfg.LIFT_LABEL_KEYWORDS) + r")", re.IGNORECASE)
     for e in elements("IfcElement"):
-        t = ue.get_type(e)
-        labels = [e.Name, getattr(e, "ObjectType", None), t.Name if t is not None else None]
-        if any(lbl and keyword_re.search(lbl) for lbl in labels):
+        if _has_lift_label(e, cfg.LIFT_LABEL_KEYWORDS):
             lift_elements.setdefault(e.GlobalId, e)
     cats["lifts"] = [
         _lift_record(e, base(e, "lift"), cfg.LIFT_ROLE_PATTERNS, cfg.LIFT_ACCESS_NAME_PATTERN)

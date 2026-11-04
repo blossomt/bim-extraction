@@ -14,7 +14,7 @@ import ifcopenshell
 import ifcopenshell.geom
 import numpy as np
 import shapely
-from shapely.geometry import LineString, MultiPolygon, Point, Polygon
+from shapely.geometry import LineString, MultiPolygon, Polygon
 
 # Categories from Phase 2 records that get a 2D footprint.
 FOOTPRINT_CATEGORIES = ["slabs", "spaces", "walls", "obstacles", "openings", "doors", "stairs", "stair_flights", "lifts"]
@@ -122,8 +122,27 @@ def _properties_text(rec: dict, limit: int = 12) -> str:
     return "; ".join(items[:limit]) + (" …" if len(items) > limit else "")
 
 
+def _element_footprint(entity, own, part_meshes: list, walking_z: float, cfg) -> tuple[Polygon | MultiPolygon, float | None, float | None, str, int]:
+    """(footprint, z_min, z_max, status, parts at walking height) from the element's own mesh and its parts' meshes."""
+    # Parts above/below walking height (e.g. transoms over doors) are not walking obstacles.
+    walking_parts = [(v, f) for v, f in part_meshes if v[:, 2].min() <= walking_z <= v[:, 2].max()]
+    own_meshes = [own] if own is not None else []
+    sources = own_meshes + part_meshes
+    if not sources:
+        return Polygon(), None, None, _status_for_missing(entity), 0
+    footprint = polygonal_part(shapely.union_all(
+        [mesh_footprint(v, f, cfg.GEOMETRY_GRID_SIZE_M) for v, f in own_meshes + walking_parts],
+        grid_size=cfg.GEOMETRY_GRID_SIZE_M,
+    ))
+    z = np.concatenate([v[:, 2] for v, _ in sources])
+    status = "ok" if own is not None else "ok_from_parts"
+    if footprint.is_empty:
+        status = "no_parts_at_walking_height" if part_meshes and not walking_parts and own is None else "empty_footprint"
+    return footprint, float(z.min()), float(z.max()), status, len(walking_parts)
+
+
 def extract_geometry(model: ifcopenshell.file, extracted: dict, storey_elevation_m: float, cfg) -> dict:
-    """Build per-category GeoDataFrames (footprints) plus door points/lines and a summary."""
+    """Build per-category GeoDataFrames (footprints) plus door points and a summary."""
     walking_z = storey_elevation_m + cfg.WALKING_HEIGHT_M
     records = {c: extracted["elements"].get(c, []) for c in FOOTPRINT_CATEGORIES}
 
@@ -138,29 +157,14 @@ def extract_geometry(model: ifcopenshell.file, extracted: dict, storey_elevation
     meshes = iterate_meshes(model, to_mesh, cfg.GEOMETRY_THREADS)
 
     frames, status_counts, repairs = {}, {}, []
-    door_points, door_lines, width_checks = [], [], []
+    door_points, width_checks = [], []
     for category, recs in records.items():
         rows = []
         for rec in recs:
             gid = rec["global_id"]
             part_meshes = [meshes[p.GlobalId] for p in parts_of.get(gid, []) if p.GlobalId in meshes]
-            # Parts above/below walking height (e.g. transoms over doors) are not walking obstacles.
-            walking_parts = [(v, f) for v, f in part_meshes if v[:, 2].min() <= walking_z <= v[:, 2].max()]
-            own = meshes.get(gid)
-            sources = ([own] if own is not None else []) + part_meshes
-            if sources:
-                footprint = polygonal_part(shapely.union_all(
-                    [mesh_footprint(v, f, cfg.GEOMETRY_GRID_SIZE_M) for v, f in ([own] if own is not None else []) + walking_parts],
-                    grid_size=cfg.GEOMETRY_GRID_SIZE_M,
-                ))
-                z = np.concatenate([v[:, 2] for v, _ in sources])
-                z_min, z_max = float(z.min()), float(z.max())
-                status = "ok" if own is not None else "ok_from_parts"
-                if footprint.is_empty:
-                    status = "no_parts_at_walking_height" if part_meshes and not walking_parts and own is None else "empty_footprint"
-            else:
-                footprint, z_min, z_max = Polygon(), None, None
-                status = _status_for_missing(entities[gid])
+            footprint, z_min, z_max, status, n_walking_parts = _element_footprint(
+                entities[gid], meshes.get(gid), part_meshes, walking_z, cfg)
             if not footprint.is_empty and not footprint.is_valid:
                 before = footprint.area
                 footprint = polygonal_part(shapely.make_valid(footprint))
@@ -177,7 +181,7 @@ def extract_geometry(model: ifcopenshell.file, extracted: dict, storey_elevation
                 "covers_walking_height": None if z_min is None else bool(z_min <= walking_z <= z_max),
                 "area_m2": round(footprint.area, 4),
                 "info": _info(category, rec) + (
-                    f"; parts_meshed={len(part_meshes)}/{len(parts_of[gid])}; parts_at_walking_height={len(walking_parts)}"
+                    f"; parts_meshed={len(part_meshes)}/{len(parts_of[gid])}; parts_at_walking_height={n_walking_parts}"
                     if gid in parts_of else ""),
                 "properties": _properties_text(rec),
                 "geometry": footprint,
@@ -185,16 +189,13 @@ def extract_geometry(model: ifcopenshell.file, extracted: dict, storey_elevation
             if category == "doors" and not footprint.is_empty:
                 axis = door_axis(footprint)
                 door_points.append({"global_id": gid, "name": rec["name"], "geometry": footprint.centroid})
-                if axis is not None:
-                    door_lines.append({"global_id": gid, "name": rec["name"], "length_m": axis.length, "geometry": axis})
-                    if rec["overall_width_m"]:
-                        width_checks.append((gid, axis.length - rec["overall_width_m"]))
+                if axis is not None and rec["overall_width_m"]:
+                    width_checks.append((gid, axis.length - rec["overall_width_m"]))
         frames[category] = gpd.GeoDataFrame(rows, geometry="geometry", crs=None) if rows else gpd.GeoDataFrame(
             {"geometry": []}, geometry="geometry", crs=None)
         status_counts[category] = dict(Counter(r["status"] for r in rows))
 
     frames["door_points"] = gpd.GeoDataFrame(door_points or {"geometry": []}, geometry="geometry", crs=None)
-    frames["door_lines"] = gpd.GeoDataFrame(door_lines or {"geometry": []}, geometry="geometry", crs=None)
 
     non_empty = [f for f in frames.values() if len(f) and not f.geometry.is_empty.all()]
     bounds = shapely.union_all([shapely.box(*f.total_bounds) for f in non_empty]).bounds if non_empty else None
@@ -302,15 +303,10 @@ def _polygon_stats(geom) -> dict:
     return {"area_m2": round(geom.area, 3), "components": len(parts), "holes": sum(len(p.interiors) for p in parts)}
 
 
-def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
-    """Footprint = wall envelope ∪ floor slabs; subtract obstacles with host-specific door cuts."""
+def _floor_footprint(walls, envelope_obstacles, frames: dict, extracted: dict, cfg) -> dict:
+    """Wall/curtain-wall/column envelope (gaps closed, outer rings filled) unioned with floor slabs."""
     grid = cfg.GEOMETRY_GRID_SIZE_M
-    any_height = cfg.WALLS_BLOCK_AT_ANY_HEIGHT
-    walls = _active(frames["walls"], any_height)
-    obstacles = _active(frames["obstacles"])
-    envelope_obstacles = obstacles[obstacles["entity"].isin(cfg.ENVELOPE_OBSTACLE_ENTITIES)] if len(obstacles) else obstacles
-
-    # Footprint: walls plus curtain walls and columns spanning walking height (facade walls often stop at columns).
+    # Walls plus curtain walls and columns spanning walking height (facade walls often stop at columns).
     envelope = shapely.union_all(list(walls.geometry) + list(envelope_obstacles.geometry), grid_size=grid)
     c = cfg.ENVELOPE_CLOSING_M
     closed = envelope.buffer(c, join_style="mitre").buffer(-c, join_style="mitre") if c > 0 and not envelope.is_empty else envelope
@@ -324,8 +320,15 @@ def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
     source = {(True, True): "wall_envelope_and_floor_slabs", (True, False): "derived_from_wall_envelope",
               (False, True): "floor_slabs", (False, False): "unavailable"}[(not wall_fill.is_empty, not slab_fill.is_empty)]
     reason = "No wall/curtain-wall/column envelope spanning walking height and no FLOOR/BASESLAB slabs." if footprint.is_empty else None
+    return {"footprint": footprint, "wall_fill": wall_fill, "slab_fill": slab_fill, "slab_count": len(slab_geoms),
+            "source": source, "reason": reason}
 
-    # Door cuts: only explicit door-filled openings (host via IfcRelVoidsElement) and doors aggregated in curtain walls.
+
+def _door_cuts(frames: dict, extracted: dict, any_height: bool, cfg) -> tuple[list[dict], dict[str, list], list[dict]]:
+    """Door cuts: only explicit door-filled openings (host via IfcRelVoidsElement) and doors aggregated in curtain walls.
+
+    Returns (cut rows, cuts per host element, doors without a cut).
+    """
     opening_recs = {o["global_id"]: o for o in extracted["elements"]["openings"]}
     active_openings = _active(frames["openings"], any_height)
     opening_geom = dict(zip(active_openings["global_id"], active_openings.geometry)) if len(active_openings) else {}
@@ -349,6 +352,40 @@ def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
         if cut is not None:
             cuts_by_host.setdefault(host, []).append(cut)
             cut_rows.append({"door_global_id": gid, "door_name": door["name"], "host_global_id": host, "cut_kind": kind, "geometry": cut})
+    return cut_rows, cuts_by_host, uncut
+
+
+def _blocked_doorways(cut_rows: list[dict], footprint, aware_obstacles, obstacle_rows: list, cfg) -> list[dict]:
+    """Doorways that stay blocked in the opening-aware result (e.g. another, overlapping element not voided by the opening)."""
+    blocked = []
+    for row in cut_rows:
+        inside = row["geometry"].intersection(footprint)
+        if inside.area <= 0:
+            blocked.append({"door_global_id": row["door_global_id"], "reason": "cut outside footprint"})
+            continue
+        frac = inside.intersection(aware_obstacles).area / inside.area
+        if frac > cfg.DOORWAY_BLOCKED_FRACTION:
+            blockers = [gid for gid, g in obstacle_rows if gid != row["host_global_id"] and g.intersection(inside).area > 1e-4]
+            blocked.append({"door_global_id": row["door_global_id"], "covered_fraction": round(frac, 3), "blocking_elements": blockers})
+    return blocked
+
+
+def _excluded_count(gdf: gpd.GeoDataFrame, any_height: bool) -> int:
+    """Elements with geometry that are not active (do not span walking height)."""
+    return int((~gdf.geometry.is_empty).sum()) - len(_active(gdf, any_height))
+
+
+def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
+    """Footprint = wall envelope ∪ floor slabs; subtract obstacles with host-specific door cuts."""
+    grid = cfg.GEOMETRY_GRID_SIZE_M
+    any_height = cfg.WALLS_BLOCK_AT_ANY_HEIGHT
+    walls = _active(frames["walls"], any_height)
+    obstacles = _active(frames["obstacles"])
+    envelope_obstacles = obstacles[obstacles["entity"].isin(cfg.ENVELOPE_OBSTACLE_ENTITIES)] if len(obstacles) else obstacles
+
+    fp = _floor_footprint(walls, envelope_obstacles, frames, extracted, cfg)
+    footprint, wall_fill, slab_fill = fp["footprint"], fp["wall_fill"], fp["slab_fill"]
+    cut_rows, cuts_by_host, uncut = _door_cuts(frames, extracted, any_height, cfg)
     door_cuts = gpd.GeoDataFrame(cut_rows or {"geometry": []}, geometry="geometry", crs=None)
 
     # Each host is cut only by its own door openings.
@@ -360,36 +397,23 @@ def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
 
     raw = footprint.difference(aware_obstacles, grid_size=grid) if not footprint.is_empty else Polygon()
     walkable, log = clean_polygons(raw, cfg.MIN_COMPONENT_AREA_M2, cfg.MIN_COMPONENT_MEAN_WIDTH_M)
-
-    # Doorways that stay blocked in the opening-aware result (e.g. another, overlapping element not voided by the opening).
-    blocked = []
-    for row in cut_rows:
-        inside = row["geometry"].intersection(footprint)
-        if inside.area <= 0:
-            blocked.append({"door_global_id": row["door_global_id"], "reason": "cut outside footprint"})
-            continue
-        frac = inside.intersection(aware_obstacles).area / inside.area
-        if frac > cfg.DOORWAY_BLOCKED_FRACTION:
-            blockers = [gid for gid, g in obstacle_rows if gid != row["host_global_id"] and g.intersection(inside).area > 1e-4]
-            blocked.append({"door_global_id": row["door_global_id"], "covered_fraction": round(frac, 3), "blocking_elements": blockers})
+    blocked = _blocked_doorways(cut_rows, footprint, aware_obstacles, obstacle_rows, cfg)
 
     spaces = frames["spaces"]
     spaces_union = shapely.union_all([g for g in spaces.geometry if not g.is_empty]) if len(spaces) else Polygon()
-    not_active = {
-        name: int((~frames[name].index.isin(_active(frames[name], any_height and name != "obstacles").index)
-                   & ~frames[name].geometry.is_empty).sum())
-        for name in ("walls", "obstacles", "openings") if len(frames[name])
-    }
+    not_active = {name: _excluded_count(frames[name], any_height and name != "obstacles")
+                  for name in ("walls", "obstacles", "openings") if len(frames[name])}
+    source = fp["source"]
     fa = footprint.area
     summary = {
         "footprint_source": source,
-        "footprint_unavailable_reason": reason,
-        "envelope_closing_m": c,
+        "footprint_unavailable_reason": fp["reason"],
+        "envelope_closing_m": cfg.ENVELOPE_CLOSING_M,
         "envelope_elements": {"walls": len(walls), **Counter(envelope_obstacles["entity"] if len(envelope_obstacles) else [])},
         "footprint_parts_m2": {
             "wall_envelope": round(wall_fill.area, 3),
             "floor_slabs": round(slab_fill.area, 3),
-            "floor_slab_count": len(slab_geoms),
+            "floor_slab_count": fp["slab_count"],
             "slabs_only": round(slab_fill.difference(wall_fill).area, 3),
             "wall_envelope_only": round(wall_fill.difference(slab_fill).area, 3),
         },

@@ -136,9 +136,7 @@ def prune_corner_spurs(geom, poly: Polygon, factor: float, max_half_width: float
     corridor boundary). Only junctions with half-width <= `max_half_width` are pruned: in wide halls the branches
     are real access paths. At each junction at least one branch is kept. Repeated until stable.
     """
-    noded = shapely.node(shapely.union_all(geom))
-    edges = [LineString([(round(x, 6), round(y, 6)) for x, y in g.coords])
-             for g in shapely.get_parts(noded) if isinstance(g, LineString) and g.length > 0]
+    edges = _edges(geom)
     boundary = poly.boundary
     while True:
         degree = Counter(pt for e in edges for pt in (e.coords[0], e.coords[-1]))
@@ -155,7 +153,7 @@ def prune_corner_spurs(geom, poly: Polygon, factor: float, max_half_width: float
             idx.sort(key=lambda i: edges[i].length)
             drop.update(idx[: degree[junction] - 1])
         if not drop:
-            return shapely.line_merge(shapely.MultiLineString(edges)) if edges else None
+            return _merge(edges)
         edges = [e for i, e in enumerate(edges) if i not in drop]
 
 
@@ -182,12 +180,8 @@ def _corridor_centreline(poly: Polygon, cfg):
     return prune_corner_spurs(lines, poly, cfg.CORRIDOR_SPUR_HALF_WIDTH_FACTOR, cfg.CORRIDOR_SPUR_MAX_HALF_WIDTH_M)
 
 
-def build_network(components: gpd.GeoDataFrame, door_cuts: gpd.GeoDataFrame, cfg) -> dict:
-    t0 = time.time()
-    walkable = shapely.union_all(components.geometry.values) if len(components) else Polygon()
-    parts, split_log = split_regions(walkable, door_cuts, cfg)
-    tree = shapely.STRtree(parts)
-
+def _build_regions(parts: list[Polygon], cfg) -> tuple[list[dict], list[dict], list[dict]]:
+    """Region rows, room centre nodes and corridor centrelines (regions ordered by descending area)."""
     region_rows, room_rows, centreline_rows = [], [], []
     for i, poly in enumerate(parts):
         rid = f"R{i:03d}"  # ordered by descending area
@@ -212,8 +206,12 @@ def build_network(components: gpd.GeoDataFrame, door_cuts: gpd.GeoDataFrame, cfg
                 centreline_rows.append({"centreline_id": f"{rid}.C{k}", "region_id": rid, "length_m": round(g.length, 3),
                                         "segments": len(g.geoms), "geometry": g})
         region_rows.append(row)
+    return region_rows, room_rows, centreline_rows
 
-    # Doors: doorway = walkable part of the door cut; adjacency = regions touching the cut.
+
+def _build_doors(door_cuts: gpd.GeoDataFrame, walkable, parts: list[Polygon], region_rows: list[dict], cfg) -> list[dict]:
+    """Doorway = walkable part of the door cut; adjacency = regions touching the cut (updates region door counts)."""
+    tree = shapely.STRtree(parts)
     door_rows = []
     names = door_cuts["door_name"] if "door_name" in door_cuts else [None] * len(door_cuts)
     for door_id, door_name, cut in zip(door_cuts.get("door_global_id", []), names, door_cuts.geometry):
@@ -228,13 +226,12 @@ def build_network(components: gpd.GeoDataFrame, door_cuts: gpd.GeoDataFrame, cfg
         })
         for j in adjacent:
             region_rows[j]["doors"] += 1
+    return door_rows
 
-    regions = _gdf(region_rows)
-    for room in room_rows:
-        room["doors"] = region_rows[int(room["region_id"][1:])]["doors"]
-    centrelines = _gdf(centreline_rows)
+
+def _network_summary(region_rows, room_rows, centrelines, door_rows, split_log, runtime_s, cfg) -> dict:
     kinds = Counter(r["kind"] for r in region_rows)
-    summary = {
+    return {
         "pygeoops_version": pygeoops.__version__,
         "room_rule": {"min_rectangularity": cfg.ROOM_MIN_RECTANGULARITY, "max_aspect": cfg.ROOM_MAX_ASPECT},
         "corridor_parameters": {"densify_distance": cfg.CORRIDOR_DENSIFY_M, "min_branch_length": cfg.CORRIDOR_MIN_BRANCH_M,
@@ -244,7 +241,7 @@ def build_network(components: gpd.GeoDataFrame, door_cuts: gpd.GeoDataFrame, cfg
                                 "min_clear_width": cfg.CORRIDOR_MIN_CLEAR_WIDTH_M,
                                 "loop_max_area_m2": cfg.CORRIDOR_LOOP_MAX_AREA_M2,
                                 "parallel_offset": cfg.CORRIDOR_PARALLEL_OFFSET_M},
-        "runtime_s": round(time.time() - t0, 2),
+        "runtime_s": runtime_s,
         "region_split": split_log,
         "regions": dict(kinds),
         "room_area_m2": round(sum(r["area_m2"] for r in region_rows if r["kind"] == "room"), 3),
@@ -263,8 +260,20 @@ def build_network(components: gpd.GeoDataFrame, door_cuts: gpd.GeoDataFrame, cfg
             for r in region_rows if r["kind"] == "corridor" and r["status"] in ("failed", "empty")
         ],
     }
-    return {"regions": regions, "room_nodes": _gdf(room_rows), "centrelines": centrelines, "doors": _gdf(door_rows),
-            "walkable": walkable, "summary": summary}
+
+
+def build_network(components: gpd.GeoDataFrame, door_cuts: gpd.GeoDataFrame, cfg) -> dict:
+    t0 = time.time()
+    walkable = shapely.union_all(components.geometry.values) if len(components) else Polygon()
+    parts, split_log = split_regions(walkable, door_cuts, cfg)
+    region_rows, room_rows, centreline_rows = _build_regions(parts, cfg)
+    door_rows = _build_doors(door_cuts, walkable, parts, region_rows, cfg)
+    for room in room_rows:
+        room["doors"] = region_rows[int(room["region_id"][1:])]["doors"]
+    centrelines = _gdf(centreline_rows)
+    summary = _network_summary(region_rows, room_rows, centrelines, door_rows, split_log, round(time.time() - t0, 2), cfg)
+    return {"regions": _gdf(region_rows), "room_nodes": _gdf(room_rows), "centrelines": centrelines,
+            "doors": _gdf(door_rows), "walkable": walkable, "summary": summary}
 
 
 def label_regions(regions: gpd.GeoDataFrame, spaces: gpd.GeoDataFrame, space_records: list[dict],
@@ -327,19 +336,8 @@ def _overall_status(connectors: list[dict], n_regions: int) -> str:
     return "connected" if n_regions >= 2 else "connected_one_side"
 
 
-def build_connectors(network: dict, door_points: gpd.GeoDataFrame, lift_frame: gpd.GeoDataFrame,
-                     lift_records: list[dict], cfg) -> dict:
-    """Connect doorways and label-only lift landing doors to room nodes / corridor centrelines."""
-    regions = network["regions"]
-    region_by_id = {r["region_id"]: r for r in regions.to_dict("records")} if len(regions) else {}
-    room_nodes = dict(zip(network["room_nodes"].get("region_id", []), network["room_nodes"].geometry))
-    centrelines = {}
-    for rid, g in zip(network["centrelines"].get("region_id", []), network["centrelines"].geometry):
-        centrelines[rid] = shapely.union_all([centrelines[rid], g]) if rid in centrelines else g
-    walkable = network["walkable"]
-    walk_tol = walkable.buffer(1e-3) if not walkable.is_empty else walkable
-    original = dict(zip(door_points.get("global_id", []), door_points.geometry))
-
+def _door_connectors(network: dict, original: dict, region_by_id: dict, room_nodes: dict, centrelines: dict,
+                     walk_tol, cfg) -> tuple[list[dict], list[dict]]:
     connector_rows, door_rows = [], []
     for door in network["doors"].to_dict("records"):
         gid, point = door["door_global_id"], door["geometry"]
@@ -357,7 +355,11 @@ def build_connectors(network: dict, door_points: gpd.GeoDataFrame, lift_frame: g
                                    "identification": "explicit_ifc", **c})
         door_rows.append({**base, "connection_status": _overall_status(conns, len(rids)), "connectors": len(conns),
                           "geometry": point})
+    return connector_rows, door_rows
 
+
+def _lift_connectors(regions: gpd.GeoDataFrame, lift_frame: gpd.GeoDataFrame, lift_records: list[dict],
+                     region_by_id: dict, room_nodes: dict, centrelines: dict, walk_tol, cfg) -> tuple[list[dict], list[dict]]:
     lift_geom = dict(zip(lift_frame.get("global_id", []), lift_frame.geometry))
     tree = shapely.STRtree(regions.geometry.values) if len(regions) else None
     lift_regions = set()
@@ -365,7 +367,7 @@ def build_connectors(network: dict, door_points: gpd.GeoDataFrame, lift_frame: g
         lift_union = shapely.union_all(list(lift_frame.geometry))
         lift_regions = {k for k in tree.query(lift_union, predicate="intersects")
                         if regions.geometry.iloc[k].intersection(lift_union).area >= 0.5 * regions.geometry.iloc[k].area}
-    lift_rows = []
+    connector_rows, lift_rows = [], []
     for rec in lift_records:
         if not rec["is_access_point_candidate"]:
             continue
@@ -373,15 +375,16 @@ def build_connectors(network: dict, door_points: gpd.GeoDataFrame, lift_frame: g
         base = {"lift_global_id": gid, "name": rec["name"], "identification": rec["identification"],
                 "access_rule": rec["access_rule"]}
         fp = lift_geom.get(gid)
+        has_geometry = fp is not None and not fp.is_empty
         if rec["placement_z_outside_storey"]:
             status = "excluded_placement_inconsistent"  # decision 5: report, never connect
-        elif fp is None or fp.is_empty:
+        elif not has_geometry:
             status = "no_geometry"
         else:
             status = None
         if status:
             lift_rows.append({**base, "connection_status": status, "region_id": None, "distance_m": None,
-                              "geometry": fp.centroid if fp is not None and not fp.is_empty else None})
+                              "geometry": fp.centroid if has_geometry else None})
             continue
         point = fp.centroid
         near = tree.query(fp.buffer(cfg.LIFT_ADJACENCY_TOL_M), predicate="intersects") if tree is not None else []
@@ -397,8 +400,10 @@ def build_connectors(network: dict, door_points: gpd.GeoDataFrame, lift_frame: g
                                "identification": rec["identification"], **c})
         lift_rows.append({**base, "connection_status": "connected" if c["status"] == "ok" else c["status"],
                           "region_id": c["region_id"], "distance_m": c["distance_m"], "geometry": point})
+    return connector_rows, lift_rows
 
-    connectors = _gdf([r for r in connector_rows if r["geometry"] is not None])
+
+def _connectivity_summary(network: dict, connector_rows, door_rows, lift_rows, centrelines: dict, cfg) -> dict:
     # Whole-network connectivity: centrelines + accepted connectors (touching lines form one component).
     edges = list(network["centrelines"].geometry) + [r["geometry"] for r in connector_rows
                                                      if r["geometry"] is not None and r["status"] == "ok" and r["geometry"].length > 0]
@@ -407,8 +412,7 @@ def build_connectors(network: dict, door_points: gpd.GeoDataFrame, lift_frame: g
     doors_per_group = [sum(1 for p in door_pts if g.distance(p) < 1e-6) for g in groups]
     corridor_ids_with_connectors = {r["region_id"] for r in connector_rows if r["kind"] == "corridor_snap" and r["status"] == "ok"}
     snaps = [r for r in connector_rows if r["kind"] == "corridor_snap" and r["distance_m"] is not None]
-
-    summary = {
+    return {
         "max_snap_distance_m": cfg.MAX_SNAP_DISTANCE_M,
         "snap_width_margin_m": cfg.SNAP_WIDTH_MARGIN_M,
         "connectors_over_base_limit_accepted": sum(
@@ -440,5 +444,25 @@ def build_connectors(network: dict, door_points: gpd.GeoDataFrame, lift_frame: g
         "largest_component_doors": max(doors_per_group, default=0),
         "connected_doors": len(door_pts),
     }
-    return {"connectors": connectors, "door_access": _gdf(door_rows),
+
+
+def build_connectors(network: dict, door_points: gpd.GeoDataFrame, lift_frame: gpd.GeoDataFrame,
+                     lift_records: list[dict], cfg) -> dict:
+    """Connect doorways and label-only lift landing doors to room nodes / corridor centrelines."""
+    regions = network["regions"]
+    region_by_id = {r["region_id"]: r for r in regions.to_dict("records")} if len(regions) else {}
+    room_nodes = dict(zip(network["room_nodes"].get("region_id", []), network["room_nodes"].geometry))
+    centrelines = {}
+    for rid, g in zip(network["centrelines"].get("region_id", []), network["centrelines"].geometry):
+        centrelines[rid] = shapely.union_all([centrelines[rid], g]) if rid in centrelines else g
+    walkable = network["walkable"]
+    walk_tol = walkable.buffer(1e-3) if not walkable.is_empty else walkable
+    original = dict(zip(door_points.get("global_id", []), door_points.geometry))
+
+    connector_rows, door_rows = _door_connectors(network, original, region_by_id, room_nodes, centrelines, walk_tol, cfg)
+    lift_connector_rows, lift_rows = _lift_connectors(regions, lift_frame, lift_records, region_by_id, room_nodes,
+                                                      centrelines, walk_tol, cfg)
+    connector_rows += lift_connector_rows
+    summary = _connectivity_summary(network, connector_rows, door_rows, lift_rows, centrelines, cfg)
+    return {"connectors": _gdf([r for r in connector_rows if r["geometry"] is not None]), "door_access": _gdf(door_rows),
             "lift_access": _gdf([r for r in lift_rows if r["geometry"] is not None]), "summary": summary}

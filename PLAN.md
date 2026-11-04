@@ -99,6 +99,14 @@ Each phase ends with runnable code, tests passing, and an inspected output. Do n
 ### Phase 10 — README and acceptance review
 - **Deliverables**: README (setup, config, run, outputs, interpreting missing relationships/failures); walk SPEC §13 acceptance criteria; final summary + next three improvements.
 
+### Phase 11 — Review and simplify logic ✅
+- **Scope**: split long functions (`build_network`, `build_connectors`, `extract_geometry`, `build_floor_plan`, `main`, `build_3d_view`), share duplicated helpers (`_edges`, predefined-type and lift-label helpers), remove the unused `door_lines` frame and unused imports. No algorithm changes.
+- **Done when**: tests pass and key `summary.json` metrics on the sample storey and four additional validation storeys stay within ~2% (±1 count) of the pre-change run. Result: identical on all five.
+
+### Phase 12 — Streamline config; hard-code tested heuristics
+- **Deliverables**: `heuristics.py` holds tuned constants (corridor shaping, geometry tolerances, snap limits, reporting/Revit specifics). `config.py` keeps only settings a building owner may change for another model (storey, output dir, obstacle classes, lift naming, walking height, clear width, room rule, envelope closing, minimum component area, 3D categories). Values unchanged; README, tests and PROGRESS.md updated.
+- **Done when**: metrics identical to the end of Phase 11 and no unused setting remains in `config.py`.
+
 ## Risks / failure points
 - Geometry units or placement mismatch (feet attributes vs metre geometry).
 - Wall projections closing doorways; window openings wrongly treated as passable.

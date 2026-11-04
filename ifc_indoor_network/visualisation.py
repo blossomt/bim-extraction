@@ -58,6 +58,17 @@ def _lift_style(feature):
 
 REGION_COLOURS = {"room": "#ffe08a", "corridor": "#9ecae1"}
 
+
+def _connector_style(feature):
+    p = feature["properties"]
+    if p["status"] != "ok" or (p.get("crosses_non_walkable_m") or 0) > 0.01:
+        return {"color": "#d62728", "weight": 3, "opacity": 0.9, "dashArray": "5 4"}
+    colour = "#e6550d" if p["kind"] == "room_spoke" else "#2ca02c"
+    if p["source"] == "lift_landing_door":
+        colour = "#9467bd"
+    return {"color": colour, "weight": 2, "opacity": 0.9}
+
+
 # (layer name, frame key, style function, shown by default). Prefixes group layers in the layer control.
 LAYERS = [
     ("Analysis · Walkable area", "walkable", _style("#98df8a", "#2ca02c", opacity=0.5), False),
@@ -70,18 +81,8 @@ LAYERS = [
     ("Analysis · Door cuts in host walls", "door_cuts", _style("#00e5ff", "#008b9c", opacity=0.6), False),
     ("IFC · Lift parts (label-only)", "lifts", _lift_style, True),
     ("Network · Corridor centreline (pygeoops)", "net_centrelines", lambda _f: {"color": "#0055ff", "weight": 2.5, "opacity": 0.9}, True),
-    ("Network · Connectors", "net_connectors", lambda f: _connector_style(f), True),
+    ("Network · Connectors", "net_connectors", _connector_style, True),
 ]
-
-
-def _connector_style(feature):
-    p = feature["properties"]
-    if p["status"] != "ok" or (p.get("crosses_non_walkable_m") or 0) > 0.01:
-        return {"color": "#d62728", "weight": 3, "opacity": 0.9, "dashArray": "5 4"}
-    colour = "#e6550d" if p["kind"] == "room_spoke" else "#2ca02c"
-    if p["source"] == "lift_landing_door":
-        colour = "#9467bd"
-    return {"color": colour, "weight": 2, "opacity": 0.9}
 
 
 # (layer name, frame key, colour, radius, row filter, shown by default)
@@ -213,6 +214,7 @@ def build_floor_map(frames: dict, ifc_name: str, storey_name: str, run_seconds: 
         f"Source file: <code>{html.escape(ifc_name)}</code><br>"
         f"Storey: <code>{html.escape(storey_name)}</code><br>"
         f"Run time: {run_seconds:.0f} seconds<br>"
+        f"<i>Synthetic local coordinates (IFC world X/Y, metres) on a blank canvas — not geographic.</i>"
     ))
     root.add_child(_panel("bottom:20px;right:10px;max-height:55vh;overflow:auto",
                           f"<details open><summary><b>Legend</b></summary>{_legend_html()}</details>"))
@@ -285,14 +287,9 @@ def _point_trace(gdf, z: float, colour: str, name: str, label_cols: list[str], s
                         marker={"size": size, "color": colour}, hovertext=text, hoverinfo="text")
 
 
-def build_3d_view(meshes: dict, network: dict, connectors: dict, storey_name: str, elevation_m: float,
-                  hidden: list[str], out_path: Path, z_clip_m: float | None = None) -> Path:
-    traces = [_mesh_trace(group, items, "legendonly" if group in hidden else True)
-              for group, items in meshes.items() if items]
-    for t in traces:
-        t.update(legendgroup="ifc", legendgrouptitle_text="IFC elements")
-
+def _network_traces(network: dict, connectors: dict, elevation_m: float) -> list:
     z_floor, z_net = elevation_m + 0.02, elevation_m + 0.1
+    traces = []
     regions = network["regions"]
     for kind, colour in (("room", "#ffe08a"), ("corridor", "#9ecae1")):
         sel = regions[regions["kind"] == kind] if len(regions) else regions
@@ -310,10 +307,14 @@ def build_3d_view(meshes: dict, network: dict, connectors: dict, storey_name: st
                                ["name", "door_global_id", "connection_status"], 3))
     traces.append(_point_trace(connectors["lift_access"], z_net, "#9467bd", "lift access (label-only)",
                                ["name", "lift_global_id", "connection_status"], 6))
-    for t in traces[len([g for g, items in meshes.items() if items]):]:
-        if t is not None:
-            t.update(legendgroup="network", legendgrouptitle_text="Walking network")
+    traces = [t for t in traces if t is not None]
+    for t in traces:
+        t.update(legendgroup="network", legendgrouptitle_text="Walking network")
+    return traces
 
+
+def _scene_layout(meshes: dict, regions, elevation_m: float, z_clip_m: float | None) -> tuple[dict, str]:
+    """3D scene (axes, true-scale aspect from the visible ranges) and the explanatory note."""
     note = "IFC world coordinates in metres (synthetic local frame, not geographic). Legend toggles layers; drag to rotate."
     all_verts = [it["verts"] for items in meshes.values() for it in items]
     xy_sources = [v[:, :2] for v in all_verts if len(v)]
@@ -350,8 +351,19 @@ def build_3d_view(meshes: dict, network: dict, connectors: dict, storey_name: st
         note += " No displayable geometry or walkable regions for the selected storey."
         for axis in ("xaxis", "yaxis", "zaxis"):
             scene[axis]["visible"] = False
+    return scene, note
 
-    fig = go.Figure([t for t in traces if t is not None])
+
+def build_3d_view(meshes: dict, network: dict, connectors: dict, storey_name: str, elevation_m: float,
+                  hidden: list[str], out_path: Path, z_clip_m: float | None = None) -> tuple[Path, go.Figure]:
+    traces = [_mesh_trace(group, items, "legendonly" if group in hidden else True)
+              for group, items in meshes.items() if items]
+    for t in traces:
+        t.update(legendgroup="ifc", legendgrouptitle_text="IFC elements")
+    traces += _network_traces(network, connectors, elevation_m)
+    scene, note = _scene_layout(meshes, network["regions"], elevation_m, z_clip_m)
+
+    fig = go.Figure(traces)
     fig.update_layout(
         title=f"{storey_name} — IFC elements and derived walking network (3D)",
         annotations=[{"text": note, "xref": "paper", "yref": "paper", "x": 0, "y": 1.0, "showarrow": False,
