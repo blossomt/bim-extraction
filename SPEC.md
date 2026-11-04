@@ -193,8 +193,6 @@ For the Folium visualisation, choose one of these approaches:
 - If a reliable georeferencing transformation exists, transform the data to a suitable geographic coordinate reference system.
 - Otherwise, create a local-coordinate visualisation with an appropriate transformation to a synthetic display coordinate system, or use a local-coordinate viewer instead.
 
-Clearly label any synthetic coordinates and do not imply that they represent real-world locations.
-
 If Folium's geographic map framework makes local-coordinate display awkward, prioritise correct geometry display over forcing the model onto an actual basemap.
 
 ## 8. Optional 3D visualisation

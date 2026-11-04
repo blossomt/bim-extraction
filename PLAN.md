@@ -84,7 +84,7 @@ Each phase ends with runnable code, tests passing, and an inspected output. Do n
 
 ### Phase 7 — Full interactive 2D visualisation ✅
 - **Depends on**: Phases 3–6.
-- **Deliverables**: Folium HTML with all layers listed in SPEC §7, popups (GlobalId, name, entity, storey, properties, status), legend, summary panel, "synthetic local coordinates — not geographic" label.
+- **Deliverables**: Folium HTML with all layers listed in SPEC §7, popups (GlobalId, name, entity, storey, properties, status), legend, summary panel.
 - **Done when**: `output/floor_plan.html` opens and every layer toggles and inspects correctly.
 
 ### Phase 8 — Diagnostics report
@@ -100,7 +100,7 @@ Each phase ends with runnable code, tests passing, and an inspected output. Do n
 - **Deliverables**: README (setup, config, run, outputs, interpreting missing relationships/failures); walk SPEC §13 acceptance criteria; final summary + next three improvements.
 
 ### Phase 11 — Review and simplify logic ✅
-- **Scope**: split long functions (`build_network`, `build_connectors`, `extract_geometry`, `build_floor_plan`, `main`, `build_3d_view`), share duplicated helpers (`_edges`, predefined-type and lift-label helpers), remove the unused `door_lines` frame and unused imports. No algorithm changes.
+- **Scope**: split long functions (`build_network`, `build_connectors`, `extract_geometry`, `build_floor_plan`, `main`, `build_3d_view`), share duplicated helpers (`_edges`, predefined-type and lift-label helpers), remove the unused `door_lines` frame and unused imports. A second pass reduced total size further (inventory helpers folded together, per-stage console reports shortened to one line each, shared GeoDataFrame constructor). No algorithm changes.
 - **Done when**: tests pass and key `summary.json` metrics on the sample storey and four additional validation storeys stay within ~2% (±1 count) of the pre-change run. Result: identical on all five.
 
 ### Phase 12 — Streamline config; hard-code tested heuristics

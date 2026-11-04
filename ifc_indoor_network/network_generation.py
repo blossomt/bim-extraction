@@ -17,10 +17,6 @@ import geometry_processing as gp
 CONNECT_TOL_M = 1e-6
 
 
-def _gdf(rows: list[dict]) -> gpd.GeoDataFrame:
-    return gpd.GeoDataFrame(rows or {"geometry": []}, geometry="geometry", crs=None)
-
-
 def _line_parts(geom) -> list[LineString]:
     if geom is None or geom.is_empty:
         return []
@@ -159,20 +155,11 @@ def prune_corner_spurs(geom, poly: Polygon, factor: float, max_half_width: float
 
 def _corridor_centreline(poly: Polygon, cfg):
     """Centreline of the region's parts at least CORRIDOR_MIN_CLEAR_WIDTH_M wide, one path per corridor axis."""
-    opened = open_polygon(poly, cfg.CORRIDOR_MIN_CLEAR_WIDTH_M)
-    pieces = []
-    for part in shapely.get_parts(opened):
-        raw = pygeoops.centerline(
-            part,
-            densify_distance=cfg.CORRIDOR_DENSIFY_M,
-            min_branch_length=cfg.CORRIDOR_MIN_BRANCH_M,
-            simplifytolerance=cfg.CORRIDOR_SIMPLIFY_M,
-        )
-        if raw is not None and not raw.is_empty:
-            pieces.append(raw)
-    if not pieces:
-        return None
-    lines = collapse_obstacle_loops(pieces, poly, cfg.CORRIDOR_LOOP_MAX_AREA_M2)
+    pieces = [pygeoops.centerline(part, densify_distance=cfg.CORRIDOR_DENSIFY_M, min_branch_length=cfg.CORRIDOR_MIN_BRANCH_M,
+                                  simplifytolerance=cfg.CORRIDOR_SIMPLIFY_M)
+              for part in shapely.get_parts(open_polygon(poly, cfg.CORRIDOR_MIN_CLEAR_WIDTH_M))]
+    pieces = [p for p in pieces if p is not None and not p.is_empty]
+    lines = collapse_obstacle_loops(pieces, poly, cfg.CORRIDOR_LOOP_MAX_AREA_M2) if pieces else None
     if lines is not None and cfg.CORRIDOR_PARALLEL_OFFSET_M > 0:
         lines = drop_parallel_leaves(lines, cfg.CORRIDOR_PARALLEL_OFFSET_M)
     if lines is None:
@@ -270,10 +257,10 @@ def build_network(components: gpd.GeoDataFrame, door_cuts: gpd.GeoDataFrame, cfg
     door_rows = _build_doors(door_cuts, walkable, parts, region_rows, cfg)
     for room in room_rows:
         room["doors"] = region_rows[int(room["region_id"][1:])]["doors"]
-    centrelines = _gdf(centreline_rows)
+    centrelines = gp.gdf(centreline_rows)
     summary = _network_summary(region_rows, room_rows, centrelines, door_rows, split_log, round(time.time() - t0, 2), cfg)
-    return {"regions": _gdf(region_rows), "room_nodes": _gdf(room_rows), "centrelines": centrelines,
-            "doors": _gdf(door_rows), "walkable": walkable, "summary": summary}
+    return {"regions": gp.gdf(region_rows), "room_nodes": gp.gdf(room_rows), "centrelines": centrelines,
+            "doors": gp.gdf(door_rows), "walkable": walkable, "summary": summary}
 
 
 def label_regions(regions: gpd.GeoDataFrame, spaces: gpd.GeoDataFrame, space_records: list[dict],
@@ -376,23 +363,14 @@ def _lift_connectors(regions: gpd.GeoDataFrame, lift_frame: gpd.GeoDataFrame, li
                 "access_rule": rec["access_rule"]}
         fp = lift_geom.get(gid)
         has_geometry = fp is not None and not fp.is_empty
-        if rec["placement_z_outside_storey"]:
-            status = "excluded_placement_inconsistent"  # decision 5: report, never connect
-        elif not has_geometry:
-            status = "no_geometry"
-        else:
-            status = None
-        if status:
-            lift_rows.append({**base, "connection_status": status, "region_id": None, "distance_m": None,
-                              "geometry": fp.centroid if has_geometry else None})
-            continue
-        point = fp.centroid
-        near = tree.query(fp.buffer(cfg.LIFT_ADJACENCY_TOL_M), predicate="intersects") if tree is not None else []
+        point = fp.centroid if has_geometry else None
         # A region mostly occupied by lift parts (the shaft) is not part of the main network: connect outward.
-        near = [k for k in near if k not in lift_regions]
-        if len(near) == 0:
-            lift_rows.append({**base, "connection_status": "no_adjacent_region", "region_id": None, "distance_m": None,
-                              "geometry": point})
+        near = [k for k in tree.query(fp.buffer(cfg.LIFT_ADJACENCY_TOL_M), predicate="intersects")
+                if k not in lift_regions] if has_geometry and tree is not None else []
+        status = ("excluded_placement_inconsistent" if rec["placement_z_outside_storey"]  # report, never connect
+                  else "no_geometry" if not has_geometry else "no_adjacent_region" if not near else None)
+        if status:
+            lift_rows.append({**base, "connection_status": status, "region_id": None, "distance_m": None, "geometry": point})
             continue
         j = min(near, key=lambda k: regions.geometry.iloc[k].distance(point))
         c = _connect(point, region_by_id[regions["region_id"].iloc[j]], room_nodes, centrelines, walk_tol, cfg)
@@ -464,5 +442,5 @@ def build_connectors(network: dict, door_points: gpd.GeoDataFrame, lift_frame: g
                                                       centrelines, walk_tol, cfg)
     connector_rows += lift_connector_rows
     summary = _connectivity_summary(network, connector_rows, door_rows, lift_rows, centrelines, cfg)
-    return {"connectors": _gdf([r for r in connector_rows if r["geometry"] is not None]), "door_access": _gdf(door_rows),
-            "lift_access": _gdf([r for r in lift_rows if r["geometry"] is not None]), "summary": summary}
+    return {"connectors": gp.gdf([r for r in connector_rows if r["geometry"] is not None]), "door_access": gp.gdf(door_rows),
+            "lift_access": gp.gdf([r for r in lift_rows if r["geometry"] is not None]), "summary": summary}

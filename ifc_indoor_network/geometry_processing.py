@@ -1,6 +1,6 @@
 """IFC geometry -> 2D Shapely geometry for the selected storey.
 
-Coordinates are IfcOpenShell world coordinates in metres (local project frame, not geographic).
+Coordinates are IfcOpenShell world coordinates in metres (local project frame).
 Walls are meshed with opening subtraction disabled (solid); door openings are kept as separate
 footprints so later phases can decide explicitly which openings make a wall passable.
 """
@@ -18,6 +18,10 @@ from shapely.geometry import LineString, MultiPolygon, Polygon
 
 # Categories from Phase 2 records that get a 2D footprint.
 FOOTPRINT_CATEGORIES = ["slabs", "spaces", "walls", "obstacles", "openings", "doors", "stairs", "stair_flights", "lifts"]
+
+
+def gdf(rows: list[dict]) -> gpd.GeoDataFrame:
+    return gpd.GeoDataFrame(rows or {"geometry": []}, geometry="geometry", crs=None)
 
 
 def mesh_settings(subtract_openings: bool = False) -> ifcopenshell.geom.settings:
@@ -87,32 +91,17 @@ def door_axis(footprint) -> LineString | None:
     return LineString([(short_a[0] + short_a[1]) / 2, (short_b[0] + short_b[1]) / 2])
 
 
-def _info(category: str, rec: dict) -> str:
-    """Short category-specific description used in map tooltips."""
-    if category == "walls":
-        return f"classification={rec['classification']}; openings={len(rec['openings'])}"
-    if category == "openings":
-        return f"filling={rec['filling_kind']}; host={(rec['host'] or {}).get('name')}"
-    if category == "doors":
-        return f"host_status={rec['host_relationship_status']}; width_m={rec['overall_width_m']}"
-    if category == "spaces":
-        return f"long_name={rec['long_name']}"
-    if category == "obstacles":
-        return f"obstacle={rec['obstacle_category']}"
-    if category == "lifts":
-        return (f"{rec['identification']}; role={rec['role']}; access_candidate={rec['is_access_point_candidate']}; "
-                f"placement_outside_storey={rec['placement_z_outside_storey']}")
-    if category == "slabs":
-        return f"predefined={rec['predefined_type']}; floor_candidate={rec['is_floor_candidate']}"
-    if category == "stairs":
-        return f"parent_stair={(rec['parent_stair'] or {}).get('name')}"
-    return ""
-
-
-def _status_for_missing(element) -> str:
-    if getattr(element, "Representation", None) is None:
-        return "no_representation"
-    return "no_geometry_output"
+_INFO = {
+    "walls": lambda r: f"classification={r['classification']}; openings={len(r['openings'])}",
+    "openings": lambda r: f"filling={r['filling_kind']}; host={(r['host'] or {}).get('name')}",
+    "doors": lambda r: f"host_status={r['host_relationship_status']}; width_m={r['overall_width_m']}",
+    "spaces": lambda r: f"long_name={r['long_name']}",
+    "obstacles": lambda r: f"obstacle={r['obstacle_category']}",
+    "lifts": lambda r: (f"{r['identification']}; role={r['role']}; access_candidate={r['is_access_point_candidate']}; "
+                        f"placement_outside_storey={r['placement_z_outside_storey']}"),
+    "slabs": lambda r: f"predefined={r['predefined_type']}; floor_candidate={r['is_floor_candidate']}",
+    "stairs": lambda r: f"parent_stair={(r['parent_stair'] or {}).get('name')}",
+}
 
 
 def _properties_text(rec: dict, limit: int = 12) -> str:
@@ -129,7 +118,7 @@ def _element_footprint(entity, own, part_meshes: list, walking_z: float, cfg) ->
     own_meshes = [own] if own is not None else []
     sources = own_meshes + part_meshes
     if not sources:
-        return Polygon(), None, None, _status_for_missing(entity), 0
+        return Polygon(), None, None, "no_representation" if getattr(entity, "Representation", None) is None else "no_geometry_output", 0
     footprint = polygonal_part(shapely.union_all(
         [mesh_footprint(v, f, cfg.GEOMETRY_GRID_SIZE_M) for v, f in own_meshes + walking_parts],
         grid_size=cfg.GEOMETRY_GRID_SIZE_M,
@@ -180,7 +169,7 @@ def extract_geometry(model: ifcopenshell.file, extracted: dict, storey_elevation
                 "z_max": z_max,
                 "covers_walking_height": None if z_min is None else bool(z_min <= walking_z <= z_max),
                 "area_m2": round(footprint.area, 4),
-                "info": _info(category, rec) + (
+                "info": _INFO.get(category, lambda r: "")(rec) + (
                     f"; parts_meshed={len(part_meshes)}/{len(parts_of[gid])}; parts_at_walking_height={n_walking_parts}"
                     if gid in parts_of else ""),
                 "properties": _properties_text(rec),
@@ -191,18 +180,17 @@ def extract_geometry(model: ifcopenshell.file, extracted: dict, storey_elevation
                 door_points.append({"global_id": gid, "name": rec["name"], "geometry": footprint.centroid})
                 if axis is not None and rec["overall_width_m"]:
                     width_checks.append((gid, axis.length - rec["overall_width_m"]))
-        frames[category] = gpd.GeoDataFrame(rows, geometry="geometry", crs=None) if rows else gpd.GeoDataFrame(
-            {"geometry": []}, geometry="geometry", crs=None)
+        frames[category] = gdf(rows)
         status_counts[category] = dict(Counter(r["status"] for r in rows))
 
-    frames["door_points"] = gpd.GeoDataFrame(door_points or {"geometry": []}, geometry="geometry", crs=None)
+    frames["door_points"] = gdf(door_points)
 
     non_empty = [f for f in frames.values() if len(f) and not f.geometry.is_empty.all()]
     bounds = shapely.union_all([shapely.box(*f.total_bounds) for f in non_empty]).bounds if non_empty else None
     diffs = np.asarray([d for _, d in width_checks])
     median = float(np.median(diffs)) if len(diffs) else None
     summary = {
-        "coordinate_frame": "IfcOpenShell world XY, metres (local project coordinates; not geographic)",
+        "coordinate_frame": "IfcOpenShell world XY, metres (local project coordinates)",
         "walking_height_z_m": walking_z,
         "status_by_category": status_counts,
         "not_covering_walking_height": {
@@ -289,13 +277,8 @@ def clean_polygons(geom, min_area: float, min_mean_width: float = 0.0) -> tuple[
 
 def _components_frame(geom) -> gpd.GeoDataFrame:
     parts = sorted(shapely.get_parts(geom), key=lambda p: -p.area) if not geom.is_empty else []
-    rows = [{
-        "component_id": f"W{i:03d}",  # ordered by descending area
-        "area_m2": round(p.area, 3),
-        "holes": len(p.interiors),
-        "geometry": p,
-    } for i, p in enumerate(parts)]
-    return gpd.GeoDataFrame(rows or {"geometry": []}, geometry="geometry", crs=None)
+    return gdf([{"component_id": f"W{i:03d}", "area_m2": round(p.area, 3), "holes": len(p.interiors), "geometry": p}
+                for i, p in enumerate(parts)])
 
 
 def _polygon_stats(geom) -> dict:
@@ -386,7 +369,6 @@ def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
     fp = _floor_footprint(walls, envelope_obstacles, frames, extracted, cfg)
     footprint, wall_fill, slab_fill = fp["footprint"], fp["wall_fill"], fp["slab_fill"]
     cut_rows, cuts_by_host, uncut = _door_cuts(frames, extracted, any_height, cfg)
-    door_cuts = gpd.GeoDataFrame(cut_rows or {"geometry": []}, geometry="geometry", crs=None)
 
     # Each host is cut only by its own door openings.
     obstacle_rows = _id_geoms(walls, obstacles)
@@ -403,8 +385,7 @@ def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
     spaces_union = shapely.union_all([g for g in spaces.geometry if not g.is_empty]) if len(spaces) else Polygon()
     not_active = {name: _excluded_count(frames[name], any_height and name != "obstacles")
                   for name in ("walls", "obstacles", "openings") if len(frames[name])}
-    source = fp["source"]
-    fa = footprint.area
+    source, fa = fp["source"], footprint.area
     summary = {
         "footprint_source": source,
         "footprint_unavailable_reason": fp["reason"],
@@ -437,7 +418,7 @@ def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
     }
     out_frames = {
         "footprint": gpd.GeoDataFrame([{"source": source, "area_m2": round(fa, 3), "geometry": footprint}], geometry="geometry", crs=None),
-        "door_cuts": door_cuts,
+        "door_cuts": gdf(cut_rows),
         "walkable": _components_frame(walkable),
     }
     return {"frames": out_frames, "geometries": {"footprint": footprint, "walkable": walkable}, "summary": summary}

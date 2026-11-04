@@ -84,117 +84,23 @@ def print_inventory(inv: dict) -> None:
 
 
 def print_selected(storey: ifc_reader.StoreyInfo, inv: dict) -> None:
-    counts = next(s["element_counts"] for s in inv["storeys"] if s["global_id"] == storey.global_id)
     print(f"\nSelected storey: {storey.name!r}  GlobalId {storey.global_id}")
-    print(f"  Elevation: {_fmt(storey.elevation_raw)} {inv['length_unit']['name']} = {_fmt(storey.elevation_m)} m; "
-          f"placement Z {_fmt(storey.placement_z_m)} m (world Z used for walking height: {_fmt(storey.world_z_m)} m)")
-    print("  Element counts (direct = one explicit relationship to the storey; indirect = via space/aggregate/opening/filling):")
-    for cat in inv["entity_counts"]:
-        c = counts.get(cat, {})
-        print(f"    {cat:<22} direct {c.get('direct', 0):>5}   indirect {c.get('indirect', 0):>5}")
-    lift_cands = [c for c in inv["lifts"]["label_candidates"] if c["storey"] == storey.name]
-    print(f"  Lift label candidates on this storey: {len(lift_cands)}")
+    print(f"  Elevation {_fmt(storey.elevation_m)} m; placement Z {_fmt(storey.placement_z_m)} m "
+          f"(world Z used for walking height: {_fmt(storey.world_z_m)} m)")
 
 
 INVENTORY_CATEGORY_FOR = {
-    "walls": "IfcWall",
-    "slabs": "IfcSlab",
-    "spaces": "IfcSpace",
-    "doors": "IfcDoor",
-    "openings": "IfcOpeningElement",
-    "stairs": "IfcStair",
-    "stair_flights": "IfcStairFlight",
+    "walls": "IfcWall", "slabs": "IfcSlab", "spaces": "IfcSpace", "doors": "IfcDoor",
+    "openings": "IfcOpeningElement", "stairs": "IfcStair", "stair_flights": "IfcStairFlight",
 }
 
 
-def print_extraction(extracted: dict, inv: dict) -> list[str]:
-    """Print the extraction summary; return count mismatches against the Phase 1 inventory."""
-    s = extracted["summary"]
-    print("\nExtracted records (semantics only, no geometry):")
-    for name, n in s["counts"].items():
-        print(f"  {name:<14} {n:>5}")
-    print(f"  Walls by classification: {s['walls_by_classification']}")
-    print(f"  Doors by host relationship: {s['doors_by_host_status']}")
-    if s["doors_host_on_other_storey"]:
-        print(f"  Doors whose host wall is on another storey: {len(s['doors_host_on_other_storey'])}")
-    print(f"  Openings by filling: {s['openings_by_filling']}")
-    print(f"  Slab floor candidates: {s['slab_floor_candidates']} of {s['counts']['slabs']}")
-    print(f"  Stairs: {s['stairs_top_level']} top-level of {s['counts']['stairs']}")
-    print(f"  Lifts: {s['lifts_explicit']} explicit IfcTransportElement; label-only by role {s['lifts_label_only_by_role']}; "
-          f"{s['lift_access_point_candidates']} access-point candidates (label-only)")
-    lo, hi = s["placement_z_window_m"]
-    print(f"  Placement Z outside storey window [{_fmt(lo)}, {_fmt(hi)}) m (report only, no reassignment):")
-    for cat, items in s["placement_z_outside_storey"].items():
-        print(f"    {cat:<14} {len(items):>4}  e.g. {items[0]['name']!r} at Z {items[0]['placement_z_m']} m")
-
+def cross_check_inventory(extracted: dict, inv: dict) -> list[str]:
+    """Count mismatches between extracted records and the Phase 1 inventory for the selected storey."""
+    counts = extracted["summary"]["counts"]
     storey_counts = next(st["element_counts"] for st in inv["storeys"] if st["global_id"] == extracted["storey"]["global_id"])
-    mismatches = []
-    for name, ifc_cat in INVENTORY_CATEGORY_FOR.items():
-        expected = sum(storey_counts.get(ifc_cat, {}).values())
-        if expected != s["counts"][name]:
-            mismatches.append(f"{name}: extracted {s['counts'][name]} vs inventory {expected}")
-    print("  Cross-check vs inventory: " + ("OK" if not mismatches else "MISMATCH " + "; ".join(mismatches)))
-    return mismatches
-
-
-def print_geometry(summary: dict) -> None:
-    print(f"\nGeometry ({summary['coordinate_frame']}); walking height Z = {_fmt(summary['walking_height_z_m'])} m")
-    for cat, counts in summary["status_by_category"].items():
-        if counts:
-            print(f"  {cat:<14} {counts}")
-    print(f"  Not covering walking height: {summary['not_covering_walking_height']}")
-    print(f"  Geometry repairs (make_valid): {len(summary['geometry_repairs'])}")
-    dw = summary["door_width_check"]
-    print(f"  Door axis - OverallWidth: {dw['compared']} compared, median {_fmt(dw['median_axis_minus_overall_width_m'], 3)} m, "
-          f"offsets {dw['offset_counts_m']}, {len(dw['outliers'])} outliers vs median")
-    print(f"  XY bounds (m): {[round(b, 2) for b in summary['bounds_xy_m'] or []]}")
-
-
-def print_floor_plan(summary: dict) -> None:
-    fp = summary["footprint"]
-    print(f"\nFloor plan: footprint source = {summary['footprint_source']} (envelope closing {summary['envelope_closing_m']} m)")
-    if summary["footprint_unavailable_reason"]:
-        print(f"  UNAVAILABLE: {summary['footprint_unavailable_reason']}")
-    print(f"  Footprint: {fp['area_m2']} m2, {fp['components']} components; parts {summary['footprint_parts_m2']}")
-    print(f"  Obstacles used: {summary['obstacles_used']}; excluded (not spanning walking height): {summary['excluded_not_spanning_walking_height']}")
-    print(f"  Door cuts: {summary['door_cuts']}; doors without cut: {len(summary['doors_without_cut'])}")
-    s = summary["walkable"]
-    print(f"  Walkable {s['area_m2']:>9} m2, {s['components']:>4} components, {s['holes']:>3} holes, "
-          f"lost {s['area_lost_pct']}%, slivers removed {s['slivers_removed']} ({s['sliver_area_m2']} m2), "
-          f"thin removed {s['thin_removed']} ({s['thin_area_m2']} m2), repaired={s['repaired']}")
-    print(f"  Doorways still blocked (opening-aware): {len(summary['doorways_still_blocked'])}")
-    sc = summary["spaces_comparison"]
-    print(f"  IfcSpace area {sc['spaces_area_m2']} m2; outside footprint {sc['spaces_area_outside_footprint_m2']} m2; "
-          f"footprint not covered by spaces {sc['footprint_area_not_in_spaces_m2']} m2")
-
-
-def print_network(summary: dict) -> None:
-    print(f"\nNetwork (walkable area split at door cuts; pygeoops {summary['pygeoops_version']}) "
-          f"in {summary['runtime_s']}s")
-    print(f"  Regions: {summary['regions']} (rooms {summary['room_area_m2']} m2, corridors {summary['corridor_area_m2']} m2); "
-          f"split log {summary['region_split']}")
-    print(f"  Room rule {summary['room_rule']} -> {summary['room_nodes']} centre nodes")
-    print(f"  Corridor centreline params {summary['corridor_parameters']}: status {summary['corridor_status']}, "
-          f"{summary['centreline_components']} components, {summary['centreline_length_m']} m")
-    print(f"  Doors: {summary['doors_by_status']}; by adjacent region count {summary['doors_by_adjacent_region_count']}")
-    print(f"  Regions without doors: {len(summary['regions_without_doors'])} {summary['regions_without_doors_by_kind']}")
-    for c in summary["corridors_failed_or_empty"]:
-        print(f"  {c['status'].upper()}: {c['region_id']} area {c['area_m2']} m2 {c.get('error') or ''}")
-
-
-def print_connectors(summary: dict) -> None:
-    print(f"\nConnectors (corridor snap limit = max({summary['max_snap_distance_m']} m, region half-width + "
-          f"{summary['snap_width_margin_m']} m); {summary['connectors_over_base_limit_accepted']} accepted above base limit)")
-    print(f"  Doors: {summary['doors_by_connection_status']}")
-    print(f"  Connectors: {summary['connectors_by_kind_status']}; corridor snap distance {summary['corridor_snap_distance_m']}")
-    print(f"  Too long: {len(summary['connectors_too_long'])}; crossing non-walkable: {len(summary['connectors_crossing_non_walkable'])}; "
-          f"door access points outside walkable: {len(summary['door_access_points_outside_walkable'])} "
-          f"(max adjustment from door footprint centre {summary['door_access_point_adjustment_max_m']} m)")
-    lifts = summary["lifts"]
-    print(f"  Lift access (label-only landing doors): {lifts['access_point_candidates']} candidates -> {lifts['by_connection_status']}")
-    print(f"  Corridor regions without connectors: {len(summary['corridor_regions_without_connectors'])}")
-    print(f"  Network components {summary['network_components']} ({summary['network_components_with_doors']} with doors); "
-          f"largest holds {summary['largest_component_doors']} of {summary['connected_doors']} connected doors")
+    return [f"{name}: extracted {counts[name]} vs inventory {sum(storey_counts.get(cat, {}).values())}"
+            for name, cat in INVENTORY_CATEGORY_FOR.items() if sum(storey_counts.get(cat, {}).values()) != counts[name]]
 
 
 def run_storey_pipeline(model, membership, selected: ifc_reader.StoreyInfo, storeys: list, inv: dict,
@@ -202,16 +108,20 @@ def run_storey_pipeline(model, membership, selected: ifc_reader.StoreyInfo, stor
     """Phases 2-7 and 9 for one storey; writes summary.json, floor_plan.html and (unless --no-3d) floor_plan_3d.html."""
     print_selected(selected, inv)
     extracted = ifc_reader.extract_storey_elements(model, membership, selected, storeys, config)
-    extracted["summary"]["inventory_mismatches"] = print_extraction(extracted, inv)
+    mismatches = extracted["summary"]["inventory_mismatches"] = cross_check_inventory(extracted, inv)
+    print(f"Extracted {extracted['summary']['counts']}; cross-check vs inventory: {'OK' if not mismatches else mismatches}")
 
     t_geom = time.time()
     geom = geometry_processing.extract_geometry(model, extracted, selected.world_z_m, config)
     print(f"\nGeometry extracted in {time.time() - t_geom:.1f}s")
-    print_geometry(geom["summary"])
     plan = geometry_processing.build_floor_plan(geom["frames"], extracted, config)
-    print_floor_plan(plan["summary"])
+    fp, walk = plan["summary"]["footprint"], plan["summary"]["walkable"]
+    print(f"Floor plan: footprint {fp['area_m2']} m2 ({plan['summary']['footprint_source']}), walkable {walk['area_m2']} m2, "
+          f"{plan['summary']['door_cuts']} door cuts")
     network = network_generation.build_network(plan["frames"]["walkable"], plan["frames"]["door_cuts"], config)
-    print_network(network["summary"])
+    ns = network["summary"]
+    print(f"Network in {ns['runtime_s']}s: regions {ns['regions']}, {ns['room_nodes']} room nodes, "
+          f"{ns['centreline_components']} centreline components ({ns['centreline_length_m']} m)")
     labels = network_generation.label_regions(network["regions"], geom["frames"]["spaces"], extracted["elements"]["spaces"])
     for key in ("regions", "room_nodes"):
         if len(network[key]):
@@ -219,7 +129,10 @@ def run_storey_pipeline(model, membership, selected: ifc_reader.StoreyInfo, stor
     conn = network_generation.build_connectors(
         network, geom["frames"]["door_points"], geom["frames"]["lifts"], extracted["elements"]["lifts"], config
     )
-    print_connectors(conn["summary"])
+    cs = conn["summary"]
+    print(f"Connectors: doors {cs['doors_by_connection_status']}; lifts {cs['lifts']['by_connection_status']}; "
+          f"{cs['network_components']} network components, largest holds {cs['largest_component_doors']} of "
+          f"{cs['connected_doors']} connected doors; {len(cs['connectors_too_long'])} too long")
     summary_path = args.output_dir / "summary.json"
     summary_path.write_text(json.dumps({
         "extraction": extracted["summary"], "geometry": geom["summary"], "floor_plan": plan["summary"],

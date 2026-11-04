@@ -111,10 +111,6 @@ def list_storeys(model: ifcopenshell.file) -> list[StoreyInfo]:
     return sorted(storeys, key=lambda s: (s.elevation_m is None, s.elevation_m or 0.0, s.name or ""))
 
 
-def list_buildings(model: ifcopenshell.file) -> list[dict]:
-    return [{"global_id": b.GlobalId, "name": b.Name, "long_name": b.LongName} for b in model.by_type("IfcBuilding")]
-
-
 def count_entities(model: ifcopenshell.file, entity_names: list[str]) -> dict[str, int | None]:
     """Counts including subtypes. None means the entity does not exist in the file's schema."""
     counts = {}
@@ -206,41 +202,9 @@ def storey_category_counts(
     return {k: {c: dict(n) for c, n in v.items()} for k, v in result.items()}
 
 
-def relationship_path_summary(membership: dict[str, Membership]) -> dict[str, int]:
-    """How storey membership was established, e.g. 'contained_in>IfcBuildingStorey'."""
-    counts: Counter = Counter()
-    for m in membership.values():
-        if not m.path:
-            key = "none"
-        else:
-            key = ">".join(f"{step.split(':')[0]}>{step.split(':')[1]}" for step in m.path)
-        if m.storey_global_id is None:
-            key = f"UNASSIGNED[{key}]"
-        counts[key] += 1
-    return dict(counts.most_common())
-
-
-def summarise_unassigned(membership: dict[str, Membership], limit: int = 50) -> dict:
-    unassigned = [m for m in membership.values() if m.storey_global_id is None]
-    return {
-        "count": len(unassigned),
-        "by_entity": dict(Counter(m.entity for m in unassigned).most_common()),
-        "by_stop_reason": dict(Counter(m.stopped_at or "no_relationship" for m in unassigned).most_common()),
-        "examples": [asdict(m) for m in unassigned[:limit]],
-    }
-
-
 def _predefined(element) -> tuple[str, object] | None:
     """(attribute name, value) of the first of PredefinedType / OperationType / ShapeType the entity has."""
-    for attr in ("PredefinedType", "OperationType", "ShapeType"):
-        if hasattr(element, attr):
-            return attr, getattr(element, attr)
-    return None
-
-
-def _predefined_type(element):
-    found = _predefined(element)
-    return f"{found[0]}={found[1]}" if found else None
+    return next(((a, getattr(element, a)) for a in ("PredefinedType", "OperationType", "ShapeType") if hasattr(element, a)), None)
 
 
 def summarise_labels(model: ifcopenshell.file, category: str, top_n: int) -> dict | None:
@@ -254,7 +218,8 @@ def summarise_labels(model: ifcopenshell.file, category: str, top_n: int) -> dic
     psets: Counter = Counter()
     for e in elements:
         object_types[getattr(e, "ObjectType", None)] += 1
-        predefined[_predefined_type(e)] += 1
+        found = _predefined(e)
+        predefined[f"{found[0]}={found[1]}" if found else None] += 1
         t = ue.get_type(e)
         type_names[f"{t.is_a()}:{t.Name}" if t is not None else None] += 1
         psets.update(ue.get_psets(e).keys())
@@ -268,47 +233,12 @@ def summarise_labels(model: ifcopenshell.file, category: str, top_n: int) -> dic
     }
 
 
-def wall_classification_summary(model: ifcopenshell.file) -> dict[str, int]:
-    """Pset_WallCommon.IsExternal values across all walls (None = property missing)."""
-    counts: Counter = Counter()
-    for w in model.by_type("IfcWall"):
-        counts[str(ue.get_pset(w, "Pset_WallCommon", "IsExternal"))] += 1
-    return dict(counts)
-
-
-def containment_relationship_summary(model: ifcopenshell.file) -> dict[str, dict[str, int]]:
-    """Number of IfcRelContainedInSpatialStructure relations and elements per container entity type."""
-    out: dict = defaultdict(lambda: {"relations": 0, "elements": 0})
-    for rel in model.by_type("IfcRelContainedInSpatialStructure"):
-        out[rel.RelatingStructure.is_a()]["relations"] += 1
-        out[rel.RelatingStructure.is_a()]["elements"] += len(rel.RelatedElements)
-    return dict(out)
-
-
-def relationship_counts(model: ifcopenshell.file) -> dict[str, int | None]:
-    return count_entities(
-        model,
-        [
-            "IfcRelContainedInSpatialStructure",
-            "IfcRelReferencedInSpatialStructure",
-            "IfcRelAggregates",
-            "IfcRelVoidsElement",
-            "IfcRelFillsElement",
-            "IfcRelSpaceBoundary",
-            "IfcRelConnectsPathElements",
-        ],
-    )
-
-
 def _transport_kind(element) -> str | None:
-    for attr in ("PredefinedType", "OperationType"):
-        value = getattr(element, attr, None)
-        if value is not None:
-            return str(value)
+    value = getattr(element, "PredefinedType", None) or getattr(element, "OperationType", None)
     t = ue.get_type(element)
-    if t is not None:
-        return str(getattr(t, "PredefinedType", None))
-    return None
+    if value is None and t is not None:
+        value = getattr(t, "PredefinedType", None)
+    return None if value is None and t is None else str(value)
 
 
 def _has_lift_label(element, keywords: list[str]) -> bool:
@@ -320,66 +250,28 @@ def _has_lift_label(element, keywords: list[str]) -> bool:
 
 
 def find_lift_candidates(model: ifcopenshell.file, membership: dict[str, Membership], keywords: list[str]) -> dict:
-    """Explicit lifts (IfcTransportElement ELEVATOR) and separately, label-only candidates."""
-    explicit = []
+    """Explicit lifts (IfcTransportElement) and separately, label-only candidates."""
     try:
         transport = model.by_type("IfcTransportElement")
     except RuntimeError:
         transport = ()
-    for e in transport:
-        m = membership.get(e.GlobalId)
-        explicit.append(
-            {
-                "global_id": e.GlobalId,
-                "name": e.Name,
-                "kind": _transport_kind(e),
-                "storey": m.storey_name if m else None,
-            }
-        )
-
+    explicit = [{"global_id": e.GlobalId, "name": e.Name, "kind": _transport_kind(e),
+                 "storey": membership[e.GlobalId].storey_name if e.GlobalId in membership else None} for e in transport]
+    transport_ids = {e.GlobalId for e in transport}
     label_candidates = []
-    transport_ids = {e["global_id"] for e in explicit}
     for e in model.by_type("IfcElement"):
-        if e.GlobalId in transport_ids:
-            continue
-        if _has_lift_label(e, keywords):
-            t = ue.get_type(e)
-            m = membership.get(e.GlobalId)
-            label_candidates.append(
-                {
-                    "global_id": e.GlobalId,
-                    "entity": e.is_a(),
-                    "name": e.Name,
-                    "object_type": getattr(e, "ObjectType", None),
-                    "type_name": t.Name if t is not None else None,
-                    "storey": m.storey_name if m else None,
-                    "membership_path": m.path if m else [],
-                }
-            )
+        if e.GlobalId not in transport_ids and _has_lift_label(e, keywords):
+            t, m = ue.get_type(e), membership.get(e.GlobalId)
+            label_candidates.append({
+                "global_id": e.GlobalId, "entity": e.is_a(), "name": e.Name, "object_type": getattr(e, "ObjectType", None),
+                "type_name": t.Name if t is not None else None, "storey": m.storey_name if m else None,
+                "membership_path": m.path if m else [],
+            })
     return {
         "explicit_transport_elements": explicit,
         "label_candidates": label_candidates,
         "label_candidates_by_object_type": dict(Counter(c["object_type"] for c in label_candidates).most_common()),
         "note": "Label candidates are matched on name text only and are not confirmed lifts.",
-    }
-
-
-def georeferencing_info(model: ifcopenshell.file) -> dict:
-    sites = []
-    for s in model.by_type("IfcSite"):
-        sites.append(
-            {
-                "global_id": s.GlobalId,
-                "name": s.Name,
-                "ref_latitude_dms": list(s.RefLatitude) if s.RefLatitude else None,
-                "ref_longitude_dms": list(s.RefLongitude) if s.RefLongitude else None,
-                "ref_elevation": s.RefElevation,
-            }
-        )
-    map_conversions = count_entities(model, ["IfcMapConversion"])["IfcMapConversion"]
-    return {
-        "sites": sites,
-        "ifc_map_conversion_count": map_conversions,  # None: entity not in schema (e.g. IFC2X3)
     }
 
 
@@ -411,23 +303,41 @@ def select_storey(storeys: list[StoreyInfo], name: str | None, global_id: str | 
 def build_inventory(model: ifcopenshell.file, categories: list[str], lift_keywords: list[str], top_n: int) -> dict:
     """Model-wide inventory as a JSON-serialisable dict, plus the membership map used to build it."""
     membership = build_membership(model)
-    storeys = list_storeys(model)
     per_storey = storey_category_counts(model, membership, categories)
+    containment: dict = defaultdict(lambda: {"relations": 0, "elements": 0})
+    for rel in model.by_type("IfcRelContainedInSpatialStructure"):
+        containment[rel.RelatingStructure.is_a()]["relations"] += 1
+        containment[rel.RelatingStructure.is_a()]["elements"] += len(rel.RelatedElements)
+    paths: Counter = Counter()
+    for m in membership.values():
+        key = ">".join(f"{step.split(':')[0]}>{step.split(':')[1]}" for step in m.path) or "none"
+        paths[f"UNASSIGNED[{key}]" if m.storey_global_id is None else key] += 1
+    unassigned = [m for m in membership.values() if m.storey_global_id is None]
     return {
         "schema": model.schema,
         "length_unit": get_length_unit(model),
-        "georeferencing": georeferencing_info(model),
-        "buildings": list_buildings(model),
-        "storeys": [
-            {**asdict(s), "element_counts": per_storey.get(s.global_id, {})} for s in storeys
-        ],
+        "georeferencing": {
+            "sites": [{"global_id": s.GlobalId, "name": s.Name, "ref_latitude_dms": list(s.RefLatitude) if s.RefLatitude else None,
+                       "ref_longitude_dms": list(s.RefLongitude) if s.RefLongitude else None, "ref_elevation": s.RefElevation}
+                      for s in model.by_type("IfcSite")],
+            "ifc_map_conversion_count": count_entities(model, ["IfcMapConversion"])["IfcMapConversion"],  # None: not in schema
+        },
+        "buildings": [{"global_id": b.GlobalId, "name": b.Name, "long_name": b.LongName} for b in model.by_type("IfcBuilding")],
+        "storeys": [{**asdict(s), "element_counts": per_storey.get(s.global_id, {})} for s in list_storeys(model)],
         "entity_counts": count_entities(model, categories),
         "unassigned_element_counts": per_storey.get(None, {}),
-        "relationship_counts": relationship_counts(model),
-        "containment_by_structure_type": containment_relationship_summary(model),
-        "membership_paths": relationship_path_summary(membership),
-        "unassigned": summarise_unassigned(membership),
-        "wall_is_external": wall_classification_summary(model),
+        "relationship_counts": count_entities(model, [
+            "IfcRelContainedInSpatialStructure", "IfcRelReferencedInSpatialStructure", "IfcRelAggregates", "IfcRelVoidsElement",
+            "IfcRelFillsElement", "IfcRelSpaceBoundary", "IfcRelConnectsPathElements"]),
+        "containment_by_structure_type": dict(containment),
+        "membership_paths": dict(paths.most_common()),
+        "unassigned": {
+            "count": len(unassigned),
+            "by_entity": dict(Counter(m.entity for m in unassigned).most_common()),
+            "by_stop_reason": dict(Counter(m.stopped_at or "no_relationship" for m in unassigned).most_common()),
+            "examples": [asdict(m) for m in unassigned[:50]],
+        },
+        "wall_is_external": dict(Counter(str(ue.get_pset(w, "Pset_WallCommon", "IsExternal")) for w in model.by_type("IfcWall"))),
         "labels": {c: summarise_labels(model, c, top_n) for c in categories},
         "lifts": find_lift_candidates(model, membership, lift_keywords),
     }, membership
@@ -436,8 +346,7 @@ def build_inventory(model: ifcopenshell.file, categories: list[str], lift_keywor
 # --- Phase 2: semantic extraction for one storey -------------------------------------------
 
 
-def _predefined_value(element):
-    found = _predefined(element)
+def _predefined_value(found) -> str | None:
     return str(found[1]) if found and found[1] is not None else None
 
 
@@ -447,12 +356,6 @@ def _selected_psets(element, extra: list[str]) -> dict:
         for name, props in ue.get_psets(element).items()
         if name.startswith("Pset_") or name in extra
     }
-
-
-def _placement_z_m(element, scale: float) -> float | None:
-    if getattr(element, "ObjectPlacement", None) is None:
-        return None
-    return float(up.get_local_placement(element.ObjectPlacement)[2][3]) * scale
 
 
 def _ref(entity) -> dict | None:
@@ -469,14 +372,15 @@ def _base_record(element, m: Membership, scale: float, extra_psets: list[str]) -
         "entity": element.is_a(),
         "name": element.Name,
         "object_type": getattr(element, "ObjectType", None),
-        "predefined_type": _predefined_value(element),
+        "predefined_type": _predefined_value(_predefined(element)),
         "type_object": _ref(t),
         "storey_global_id": m.storey_global_id,
         "storey_name": m.storey_name,
         "membership_path": m.path,
         "referenced_storeys": m.referenced_storeys,
         "aggregated_in": _ref(parent) if parent is not None and not parent.is_a("IfcSpatialStructureElement") else None,
-        "placement_z_m": _placement_z_m(element, scale),
+        "placement_z_m": float(up.get_local_placement(element.ObjectPlacement)[2][3]) * scale
+        if getattr(element, "ObjectPlacement", None) is not None else None,
         "psets": _selected_psets(element, extra_psets),
     }
 
@@ -552,18 +456,6 @@ def _door_record(door, base: dict, scale: float, membership: dict[str, Membershi
     }
 
 
-def _space_record(space, base: dict) -> dict:
-    return {
-        **base,
-        "long_name": space.LongName,
-        "interior_or_exterior": str(getattr(space, "InteriorOrExteriorSpace", None)),
-    }
-
-
-def _slab_record(base: dict) -> dict:
-    return {**base, "is_floor_candidate": base["predefined_type"] in ("FLOOR", "BASESLAB")}
-
-
 def _stair_record(stair, base: dict) -> dict:
     parent = ue.get_aggregate(stair)
     return {
@@ -622,8 +514,10 @@ def extract_storey_elements(
 
     cats: dict[str, list[dict]] = {
         "walls": [_wall_record(w, base(w, "IfcWall")) for w in elements("IfcWall")],
-        "slabs": [_slab_record(base(s, "IfcSlab")) for s in elements("IfcSlab")],
-        "spaces": [_space_record(s, base(s, "IfcSpace")) for s in elements("IfcSpace")],
+        "slabs": [{**r, "is_floor_candidate": r["predefined_type"] in ("FLOOR", "BASESLAB")}
+                  for r in (base(s, "IfcSlab") for s in elements("IfcSlab"))],
+        "spaces": [{**base(s, "IfcSpace"), "long_name": s.LongName,
+                    "interior_or_exterior": str(getattr(s, "InteriorOrExteriorSpace", None))} for s in elements("IfcSpace")],
         "doors": [_door_record(d, base(d, "IfcDoor"), scale, membership) for d in elements("IfcDoor")],
         "openings": [_opening_record(o, base(o, "IfcOpeningElement")) for o in elements("IfcOpeningElement")],
         "stairs": [_stair_record(s, base(s, "IfcStair")) for s in elements("IfcStair")],

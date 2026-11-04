@@ -90,7 +90,7 @@ def test_floor_plan_columns_close_wall_envelope():
     assert plan["envelope_elements"] == {"walls": 1, "IfcColumn": 2}
 
 
-def test_floor_plan_only_door_openings_open_walls(capsys):
+def test_floor_plan_only_door_openings_open_walls():
     # Square room with one door opening and one window opening in the wall's west side.
     room = shapely.box(0, 0, 10, 10).difference(shapely.box(0.2, 0.2, 9.8, 9.8))
     corridor_wall = shapely.box(5, 0.2, 5.2, 9.8)  # splits the room in two
@@ -122,7 +122,6 @@ def test_floor_plan_only_door_openings_open_walls(capsys):
     assert s["door_cuts"] == {"door_filled_opening": 1}
     assert s["doorways_still_blocked"] == []
 
-    import main
     import network_generation
 
     net = network_generation.build_network(plan["frames"]["walkable"], plan["frames"]["door_cuts"], config)
@@ -130,9 +129,6 @@ def test_floor_plan_only_door_openings_open_walls(capsys):
     conn = network_generation.build_connectors(net, empty, empty, [], config)
     assert conn["summary"]["doors_by_connection_status"] == {"connected": 1}
     assert "variant" not in net["summary"]
-    main.print_floor_plan(s)
-    main.print_network(net["summary"])
-    assert "Walkable" in capsys.readouterr().out
 
 
 def test_floor_plan_unavailable_without_walls_or_slabs():

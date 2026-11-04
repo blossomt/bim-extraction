@@ -79,7 +79,7 @@ Implementation: [semantic extraction](ifc_indoor_network/ifc_reader.py), [geomet
 | **Connector acceptance** | Corridor snaps longer than `max(3 m, region maximum inscribed radius + 1 m)` are rejected; room spokes have no distance limit. Length crossing non-walkable geometry is measured and reported above 0.01 m, but **does not reject a connector**. Thus `connected` does not guarantee a collision-free route. |
 | **Blocked doorways** | Floor-plan diagnostics flag cuts whose obstacle-covered fraction exceeds 0.5. Network generation separately calls a doorway open if any positive walkable cut area remains. A partial obstruction can therefore be reported as blocked in the floor-plan summary yet receive a network connection. |
 | **Vertical circulation** | Stairs are extracted/displayed; lift access is connected only within the selected storey. No inter-storey links, lift operation, travel times, access-control rules or route solver are implemented. |
-| **Coordinates and diagnostics** | Outputs use a clearly labelled synthetic local frame, not a geographic CRS. Stage-level summaries exist; the consolidated diagnostics report and acceptance review remain pending. |
+| **Coordinates and diagnostics** | Outputs use the IFC local coordinate frame (no geographic CRS). Stage-level summaries exist; the consolidated diagnostics report and acceptance review remain pending. |
 
 ## Setup
 
@@ -134,7 +134,7 @@ The outputs for the sample model's Level 1 are committed, so they can be browsed
 
 The images under `docs/images/` are static screenshots of the Level 1 sample; the pipeline does not write PNGs.
 
-Coordinates are IFC world X/Y in metres, shown on a blank canvas. They are **synthetic local coordinates, not geographic**.
+Coordinates are IFC world X/Y in metres, shown on a blank canvas.
 
 Open `floor_plan.html` directly in a browser, even without an internet connection.
 Its JavaScript, styles and control images are embedded; copying just this HTML file

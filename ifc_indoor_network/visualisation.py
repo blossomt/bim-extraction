@@ -33,7 +33,6 @@ def _offline_map_header() -> str:
         parts.append(f"<script>{js}</script>")
     return "\n".join(parts)
 
-# layer name -> (frame key, style function)
 WALL_COLOURS = {"internal": "#555555", "external": "#000000", "unknown": "#d6008f"}
 
 
@@ -162,25 +161,23 @@ def build_floor_map(frames: dict, ifc_name: str, storey_name: str, run_seconds: 
                     out_path: Path) -> Path:
     m = folium.Map(location=[0, 0], zoom_start=2, crs="Simple", tiles=None, control_scale=False, prefer_canvas=True)
     # This map uses GeoJSON/CircleMarker, not Bootstrap JS or AwesomeMarkers.
-    m.default_js = []
-    m.default_css = []
+    m.default_js, m.default_css = [], []
     m.get_root().header.add_child(folium.Element(_offline_map_header()), name="offline_assets")
     m.get_root().header.add_child(folium.Element(
         "<style>.leaflet-container{background:#f4f4f2}"
         ".leaflet-control-layers{font-size:11px}.leaflet-control-layers label{margin-bottom:1px}</style>"))
 
+    def popup_fields(gdf, key):
+        wanted = DERIVED_POPUP_FIELDS.get(key, []) if "category" not in gdf.columns else ELEMENT_POPUP_FIELDS
+        return [f for f in wanted if f in gdf.columns] or [c for c in gdf.columns if c != "geometry"]
+
     for label, key, style, show in LAYERS:
         gdf = frames.get(key)
+        gdf = gdf[~gdf.geometry.is_empty] if gdf is not None and len(gdf) else None
         if gdf is None or len(gdf) == 0:
             continue
-        gdf = gdf[~gdf.geometry.is_empty]
-        if len(gdf) == 0:
-            continue
         is_element = "category" in gdf.columns
-        if is_element:
-            fields = [f for f in ELEMENT_POPUP_FIELDS if f in gdf.columns]
-        else:
-            fields = [f for f in DERIVED_POPUP_FIELDS.get(key, []) if f in gdf.columns] or [c for c in gdf.columns if c != "geometry"]
+        fields = popup_fields(gdf, key)
         folium.GeoJson(
             gdf[_keep(gdf, fields)].to_json(), name=f"{label} ({len(gdf)})", show=show, style_function=style,
             tooltip=folium.GeoJsonTooltip(fields=["name"] if is_element else fields[:2], labels=not is_element),
@@ -189,12 +186,10 @@ def build_floor_map(frames: dict, ifc_name: str, storey_name: str, run_seconds: 
 
     for label, key, colour, radius, select, show in POINT_LAYERS:
         gdf = frames.get(key)
+        gdf = select(gdf) if gdf is not None and len(gdf) else None
         if gdf is None or len(gdf) == 0:
             continue
-        gdf = select(gdf)
-        if len(gdf) == 0:
-            continue
-        fields = [f for f in DERIVED_POPUP_FIELDS.get(key, []) if f in gdf.columns] or [c for c in gdf.columns if c != "geometry"]
+        fields = popup_fields(gdf, key)
         folium.GeoJson(
             gdf[_keep(gdf, fields)].to_json(), name=f"{label} ({len(gdf)})", show=show,
             marker=folium.CircleMarker(radius=radius, color="white", weight=1, fill=True, fill_color=colour, fill_opacity=1),
@@ -214,7 +209,6 @@ def build_floor_map(frames: dict, ifc_name: str, storey_name: str, run_seconds: 
         f"Source file: <code>{html.escape(ifc_name)}</code><br>"
         f"Storey: <code>{html.escape(storey_name)}</code><br>"
         f"Run time: {run_seconds:.0f} seconds<br>"
-        f"<i>Synthetic local coordinates (IFC world X/Y, metres) on a blank canvas — not geographic.</i>"
     ))
     root.add_child(_panel("bottom:20px;right:10px;max-height:55vh;overflow:auto",
                           f"<details open><summary><b>Legend</b></summary>{_legend_html()}</details>"))
@@ -267,7 +261,7 @@ def _polygon_trace(polys: list, z: float, colour: str, name: str, labels: list[s
                      hovertext=text, hoverinfo="text", showlegend=True)
 
 
-def _line_trace(geoms, z: float, colour: str, name: str, width: int = 4, dash=None) -> go.Scatter3d | None:
+def _line_trace(geoms, z: float, colour: str, name: str, width: int = 4) -> go.Scatter3d | None:
     xs, ys = [], []
     for g in geoms:
         for part in shapely.get_parts(g):
@@ -276,7 +270,7 @@ def _line_trace(geoms, z: float, colour: str, name: str, width: int = 4, dash=No
     if not xs:
         return None
     return go.Scatter3d(x=xs, y=ys, z=[z if x is not None else None for x in xs], mode="lines", name=name,
-                        line={"color": colour, "width": width, "dash": dash}, hoverinfo="skip")
+                        line={"color": colour, "width": width}, hoverinfo="skip")
 
 
 def _point_trace(gdf, z: float, colour: str, name: str, label_cols: list[str], size: int = 4) -> go.Scatter3d | None:
@@ -315,7 +309,7 @@ def _network_traces(network: dict, connectors: dict, elevation_m: float) -> list
 
 def _scene_layout(meshes: dict, regions, elevation_m: float, z_clip_m: float | None) -> tuple[dict, str]:
     """3D scene (axes, true-scale aspect from the visible ranges) and the explanatory note."""
-    note = "IFC world coordinates in metres (synthetic local frame, not geographic). Legend toggles layers; drag to rotate."
+    note = "IFC world coordinates in metres. Legend toggles layers; drag to rotate."
     all_verts = [it["verts"] for items in meshes.values() for it in items]
     xy_sources = [v[:, :2] for v in all_verts if len(v)]
     if len(regions) and not regions.geometry.is_empty.all():
