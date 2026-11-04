@@ -1,5 +1,6 @@
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 import pytest
 import shapely
 from shapely.geometry import GeometryCollection, LineString, Point, Polygon
@@ -51,14 +52,29 @@ def test_clean_polygons_drops_slivers():
     assert cleaned.area == pytest.approx(25) and log["slivers_removed"] == 1
 
 
-def _frames(walls, openings=(), doors=(), obstacles=()):
+def _frames(walls, openings=(), doors=(), obstacles=(), covers=True):
     def frame(rows):
-        rows = [{"global_id": gid, "entity": ent, "covers_walking_height": True, "geometry": g} for gid, ent, g in rows]
+        rows = [{"global_id": gid, "entity": ent, "covers_walking_height": covers, "geometry": g} for gid, ent, g in rows]
         return gpd.GeoDataFrame(rows or {"geometry": []}, geometry="geometry", crs=None)
     return {
         "walls": frame(walls), "obstacles": frame(obstacles), "openings": frame(openings), "doors": frame(doors),
         "slabs": frame([]), "spaces": frame([]),
     }
+
+
+@pytest.mark.parametrize("any_height, components", [(True, 2), (False, 1)])
+def test_walls_not_spanning_walking_height_block_when_configured(monkeypatch, any_height, components):
+    # A dividing wall entirely above/below the walking height (e.g. at a split level) separates the room only
+    # under the conservative rule.
+    monkeypatch.setattr(config, "WALLS_BLOCK_AT_ANY_HEIGHT", any_height)
+    ring = shapely.box(0, 0, 10, 10).difference(shapely.box(0.2, 0.2, 9.8, 9.8))
+    frames = _frames(walls=[("W1", "IfcWall", ring)])
+    divider = _frames(walls=[("W2", "IfcWall", shapely.box(5, 0.2, 5.2, 9.8))], covers=False)["walls"]
+    frames["walls"] = gpd.GeoDataFrame(pd.concat([frames["walls"], divider], ignore_index=True), geometry="geometry")
+    extracted = {"elements": {"slabs": [], "openings": [], "doors": []}}
+    s = gp.build_floor_plan(frames, extracted, config)["summary"]
+    assert s["walkable"]["components"] == components
+    assert s["excluded_not_spanning_walking_height"]["walls"] == (0 if any_height else 1)
 
 
 def test_floor_plan_columns_close_wall_envelope():
@@ -171,7 +187,11 @@ def test_sample_level1_geometry(sample_ifc_path):
     net = network_generation.build_network(p["frames"]["walkable"], p["frames"]["door_cuts"], config)
     s = net["summary"]
     assert s["doors_by_status"] == {"open": 118, "blocked": 2}
-    assert s["corridors_failed_or_empty"] == []
+    # Corridors get a centreline unless they are narrower than the minimum clear width everywhere.
+    empty = set(r["region_id"] for r in s["corridors_failed_or_empty"] if r["status"] == "empty")
+    assert len(empty) == len(s["corridors_failed_or_empty"])
+    widths = net["regions"].set_index("region_id")["max_half_width_m"]
+    assert all(2 * widths[r] < config.CORRIDOR_MIN_CLEAR_WIDTH_M for r in empty)
     # The central corridor (not an IfcSpace) is the largest region and gets a centreline.
     largest = net["regions"].iloc[0]
     assert largest["kind"] == "corridor" and largest["area_m2"] > 1500

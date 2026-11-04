@@ -46,6 +46,10 @@ PLACEMENT_Z_TOLERANCE_M = 0.5
 
 # Height above the storey elevation used to decide whether walls/openings matter for walking.
 WALKING_HEIGHT_M = 1.0
+# Conservative wall rule: every wall on the storey blocks walking (and its door-filled openings cut it), whatever its
+# height range. Split-level storeys (ramps between areas at different elevations) have walls that do not span the
+# single walking height yet separate walking levels. Cost: bulkheads above / downstands below the floor also block.
+WALLS_BLOCK_AT_ANY_HEIGHT = True
 # Snapping grid for 2D unions (metres). Small enough not to close doorways.
 GEOMETRY_GRID_SIZE_M = 0.001
 GEOMETRY_THREADS = os.cpu_count() or 1
@@ -80,6 +84,13 @@ CORRIDOR_SIMPLIFY_M = 0.1
 CORRIDOR_SPUR_HALF_WIDTH_FACTOR = 1.5
 # Only junctions in corridors up to this half-width are pruned; wide halls keep their branches to reach side doors.
 CORRIDOR_SPUR_MAX_HALF_WIDTH_M = 4.0
+# Centrelines only run where the corridor is at least this wide: gaps narrower than this (e.g. beside columns) are not
+# walked through, and corridors narrower than this everywhere get no centreline (status "empty").
+CORRIDOR_MIN_CLEAR_WIDTH_M = 1.0
+# Centreline loops enclosing less than this area (tight loops around columns/posts) collapse to one path.
+CORRIDOR_LOOP_MAX_AREA_M2 = 20.0
+# Leaf branches running alongside another branch within this distance (fans in open spaces) are removed; 0 disables.
+CORRIDOR_PARALLEL_OFFSET_M = 1.5
 # A region is adjacent to a door if it lies within this distance of the door cut.
 DOOR_ADJACENCY_TOL_M = 0.05
 

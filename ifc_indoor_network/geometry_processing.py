@@ -254,10 +254,12 @@ def collect_display_meshes(model: ifcopenshell.file, extracted: dict, categories
 # --- Phase 4: floor footprint and walkable polygons ----------------------------------------
 
 
-def _active(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    """Rows with geometry that span walking height."""
+def _active(gdf: gpd.GeoDataFrame, any_height: bool = False) -> gpd.GeoDataFrame:
+    """Rows with geometry that span walking height (or any rows with geometry when `any_height`)."""
     if len(gdf) == 0 or "covers_walking_height" not in gdf:
         return gdf.iloc[0:0]
+    if any_height:
+        return gdf[gdf["covers_walking_height"].notna() & ~gdf.geometry.is_empty]
     return gdf[(gdf["covers_walking_height"] == True) & ~gdf.geometry.is_empty]  # noqa: E712
 
 
@@ -303,7 +305,8 @@ def _polygon_stats(geom) -> dict:
 def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
     """Footprint = wall envelope ∪ floor slabs; subtract obstacles with host-specific door cuts."""
     grid = cfg.GEOMETRY_GRID_SIZE_M
-    walls = _active(frames["walls"])
+    any_height = cfg.WALLS_BLOCK_AT_ANY_HEIGHT
+    walls = _active(frames["walls"], any_height)
     obstacles = _active(frames["obstacles"])
     envelope_obstacles = obstacles[obstacles["entity"].isin(cfg.ENVELOPE_OBSTACLE_ENTITIES)] if len(obstacles) else obstacles
 
@@ -324,7 +327,7 @@ def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
 
     # Door cuts: only explicit door-filled openings (host via IfcRelVoidsElement) and doors aggregated in curtain walls.
     opening_recs = {o["global_id"]: o for o in extracted["elements"]["openings"]}
-    active_openings = _active(frames["openings"])
+    active_openings = _active(frames["openings"], any_height)
     opening_geom = dict(zip(active_openings["global_id"], active_openings.geometry)) if len(active_openings) else {}
     door_frame = frames["doors"]
     door_geom = dict(zip(door_frame["global_id"], door_frame.geometry)) if len(door_frame) else {}
@@ -373,7 +376,8 @@ def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
     spaces = frames["spaces"]
     spaces_union = shapely.union_all([g for g in spaces.geometry if not g.is_empty]) if len(spaces) else Polygon()
     not_active = {
-        name: int((~frames[name].index.isin(_active(frames[name]).index) & ~frames[name].geometry.is_empty).sum())
+        name: int((~frames[name].index.isin(_active(frames[name], any_height and name != "obstacles").index)
+                   & ~frames[name].geometry.is_empty).sum())
         for name in ("walls", "obstacles", "openings") if len(frames[name])
     }
     fa = footprint.area
@@ -390,6 +394,7 @@ def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
             "wall_envelope_only": round(wall_fill.difference(slab_fill).area, 3),
         },
         "footprint": _polygon_stats(footprint),
+        "walls_block_at_any_height": any_height,
         "obstacles_used": {"walls": len(walls), "obstacles": len(obstacles)},
         "excluded_not_spanning_walking_height": not_active,
         "door_cuts": dict(Counter(r["cut_kind"] for r in cut_rows)),

@@ -2,4 +2,4 @@
 __pycache__/
 .pytest_cache/
 .DS_Store
-data/*.ifc
+ifc_indoor_network/data/*.ifc

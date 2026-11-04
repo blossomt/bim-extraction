@@ -11,9 +11,6 @@ import numpy as np
 import plotly.graph_objects as go
 import shapely
 
-SYNTHETIC_NOTE = (
-    "Synthetic local coordinates (IFC world X/Y, metres) on a blank canvas — not geographic."
-)
 VENDOR_DIR = Path(__file__).resolve().parent / "vendor"
 
 
@@ -216,7 +213,6 @@ def build_floor_map(frames: dict, ifc_name: str, storey_name: str, run_seconds: 
         f"Source file: <code>{html.escape(ifc_name)}</code><br>"
         f"Storey: <code>{html.escape(storey_name)}</code><br>"
         f"Run time: {run_seconds:.0f} seconds<br>"
-        f"<i style='color:#555'>{SYNTHETIC_NOTE}</i>",
     ))
     root.add_child(_panel("bottom:20px;right:10px;max-height:55vh;overflow:auto",
                           f"<details open><summary><b>Legend</b></summary>{_legend_html()}</details>"))

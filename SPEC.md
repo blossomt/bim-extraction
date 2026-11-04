@@ -112,7 +112,7 @@ Handle polygon holes, multipolygons, invalid geometries and small sliver polygon
 
 Use a configurable tolerance for geometric operations. Avoid aggressive buffering or simplification that could eliminate doors, narrow corridors or other valid passages.
 
-**Important (revised 2026-10-22):** generate one opening-aware walkable area, not a separate solid-wall comparison. Preserve door-filled openings in their explicitly related hosts where usable geometry spans walking height; also allow the reviewed curtain-wall aggregated-door exception. Never make window-filled or unfilled openings passable. Report missing cuts and remaining obstructions rather than inferring passages.
+**Important (revised 2026-10-22):** generate one opening-aware walkable area, not a separate solid-wall comparison. Preserve door-filled openings in their explicitly related hosts where usable geometry exists (walls and their door openings count at any height, revised 2026-10-22 for split-level storeys; see `WALLS_BLOCK_AT_ANY_HEIGHT`); also allow the reviewed curtain-wall aggregated-door exception. Never make window-filled or unfilled openings passable. Report missing cuts and remaining obstructions rather than inferring passages.
 
 Do not silently invent openings for the first version.
 

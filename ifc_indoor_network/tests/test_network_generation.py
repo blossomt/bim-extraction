@@ -71,6 +71,30 @@ def test_long_branch_is_not_pruned():
     assert pruned.length == pytest.approx(27 + 17.5)
 
 
+@pytest.mark.parametrize("neck_width, groups", [(0.6, 2), (1.4, 1)])
+def test_centreline_skips_gaps_narrower_than_min_clear_width(neck_width, groups):
+    y0 = 1.5 - neck_width / 2
+    corridor = shapely.union_all([shapely.box(0, 0, 10, 3), shapely.box(10, y0, 12, y0 + neck_width),
+                                  shapely.box(12, 0, 22, 3)])
+    lines = ng._line_parts(ng._corridor_centreline(corridor, config))
+    assert len(ng.connected_groups(lines)) == groups
+
+
+def test_centreline_passes_small_column_on_one_side():
+    corridor = shapely.box(0, 0, 20, 4).difference(shapely.box(9.8, 1.8, 10.2, 2.2))
+    lines = ng._corridor_centreline(corridor, config)
+    assert len(ng.connected_groups(ng._line_parts(lines))) == 1
+    assert shapely.polygonize(ng._line_parts(lines)).is_empty  # no loop around the column
+
+
+def test_parallel_leaf_is_dropped_but_side_branch_kept():
+    axis = LineString([(0, 0), (10, 0)])
+    parallel = LineString([(5, 0), (9, 0.8)])
+    side = LineString([(5, 0), (5, 6)])
+    kept = ng.drop_parallel_leaves(shapely.MultiLineString([axis, parallel, side]), 1.5)
+    assert kept.length == pytest.approx(10 + 6)
+
+
 def test_room_gets_centre_node_and_corridor_gets_centreline():
     walkable, door = _plan()
     result = ng.build_network(_components(walkable), _cuts(("D1", door)), config)
@@ -115,6 +139,18 @@ def test_lift_landing_doors_connected_or_excluded():
     assert conn["summary"]["lifts"]["by_connection_status"] == {"connected": 1, "excluded_placement_inconsistent": 1}
     lift_conn = conn["connectors"][conn["connectors"]["source"] == "lift_landing_door"]
     assert lift_conn["source_global_id"].tolist() == ["L1"] and lift_conn["identification"].iloc[0] == "label_only"
+
+
+def test_lift_connects_outside_its_own_shaft_region():
+    walkable, door = _plan()
+    net = ng.build_network(_components(walkable), _cuts(("D1", door)), config)
+    shaft = shapely.box(0.2, 0.2, 3.8, 3.8)  # the room region is almost entirely lift parts
+    landing = shapely.box(3.9, 1.5, 4.1, 2.5)
+    lifts = gpd.GeoDataFrame([{"global_id": "L1", "geometry": landing}, {"global_id": "L1b", "geometry": shaft}],
+                             geometry="geometry", crs=None)
+    conn = ng.build_connectors(net, _cuts(), lifts, [_lift("L1", False)], config)
+    lift_conn = conn["connectors"][conn["connectors"]["source"] == "lift_landing_door"]
+    assert lift_conn["kind"].tolist() == ["corridor_snap"]
 
 
 def test_long_corridor_snap_is_flagged(monkeypatch):

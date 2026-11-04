@@ -4,10 +4,26 @@
 
 ## Completed
 
+### Centreline constraints: 1 m clear width, no parallel lines (2026-10-22)
+- `_corridor_centreline` now: (1) opens each corridor polygon by `CORRIDOR_MIN_CLEAR_WIDTH_M = 1.0` (shrink and regrow by 0.5 m), so no centreline passes a gap under 1 m and corridors under 1 m wide get none (status `empty`, doors there get `no_centreline` connectors); (2) runs `pygeoops.centerline` per remaining part; (3) `collapse_obstacle_loops` keeps one side of loops enclosing < `CORRIDOR_LOOP_MAX_AREA_M2 = 20` m² (the side nearer the corridor boundary is dropped); (4) `drop_parallel_leaves` removes leaf branches with ≥ 70 % of their length within `CORRIDOR_PARALLEL_OFFSET_M = 1.5` m of another branch; (5) the existing corner-spur pruning. Parameters are recorded in `summary.json` `corridor_parameters`.
+- Root causes on a split-level validation storey: the medial axis passed through narrow gaps (508.7 m of centreline where the clear width was < 1 m), looped around 200+ tiny holes, and fanned out towards a saw-tooth boundary made of ~2 cm segments in a wide hall, where spur pruning is deliberately off.
+- Split-level validation storey (cached geometry): centreline 1533 → 717 m, pieces 72 → 34, leaf ends 224 → 91, length in gaps < 1 m 508.7 → 22 m (the remainder is leaf ends near walls). Corridor status 30 ok / 7 fragmented → 23 ok / 3 fragmented / 11 empty; all empty corridors are < 1 m wide. The columned walkway in R000 is cut at each column because its gaps are 0.65 m and 0.9 m. Full run: largest network component 27 of 41 connected doors, no too-long connectors.
+- A loop-obstacle-area criterion was tried first; it dropped the door side of a loop in Level 1's main hall (one 10.7 m connector over its limit), so the criterion is the total loop area.
+- Level 1: 3 corridors under 1 m wide are now `empty`; no too-long connectors. Committed `output/` was not regenerated (only the split-level validation storey was regenerated locally). Tests added for the narrow gap, column loop and parallel leaf; the Level 1 sample test now allows `empty` corridors narrower than 1 m.
+
 ### CLI follow-up — Explicit IFC input required (2026-10-22)
 - Made `--ifc` mandatory, including inventory-only runs; removed `IFC_PATH` and its unused root constant from configuration. No input model is selected implicitly.
 - Updated [README.md](README.md) commands and relative-path guidance. Sample integration tests use a test-only fixture pointing at `ifc_indoor_network/data/20210219Architecture.ifc`, independent of application configuration.
 - Validation: 33 passed, 2 skipped (sample absent at the integration-fixture location); missing-input cases exit with argparse's required-argument error, and explicit paths are preserved. No IDE errors in changed Python files. No outputs regenerated.
+
+### All walls block at any height (2026-10-22)
+- Root cause (centrelines appearing to cross walls): a split-level validation storey with a ramp; 48 of 49 crossed walls lie wholly below the floor (e.g. 2.5–3.85 m vs walking height 5.0 m) or above it (from +3.1 m), so the single walking-height filter excluded them although they separate levels.
+- New `config.WALLS_BLOCK_AT_ANY_HEIGHT = True`: every storey wall with geometry is an obstacle and envelope element, and door-filled openings cut at any height. Columns/curtain walls keep the walking-height filter. `summary.json` `floor_plan.walls_block_at_any_height` records the setting.
+- Accepted trade-off, measured with the cached geometry: Level 1 and another validation storey unchanged; the split-level validation storey's centreline inside walls 38.2 → 0.2 m, but largest network component 44/47 → 28/47 doors; a further validation storey 75/75 → 55/78 (bulkhead and below-floor downstand walls now block corridors). A proper fix would use a separate walking height per area (from IfcSpace/slab elevations).
+- Test added (`test_walls_not_spanning_walking_height_block_when_configured`).
+
+### Lift access skips the shaft region (2026-10-22)
+- `build_connectors` now connects each eligible lift landing door to the nearest adjacent region that is not a lift region (a region with ≥ 50 % of its area covered by lift parts), so lifts join the main network instead of an isolated shaft region. Level 1: still 9 lifts connected / 7 excluded; network components 14 → 11, largest component still holds 118 of 118 connected doors; connectors crossing non-walkable area 5 → 11 (lift connectors crossing the shaft wall, flagged in `summary.json`). Test added.
 
 ### README flow diagram simplification (2026-10-22)
 - Mermaid extraction flow reduced from 12 to 7 nodes in plain, active wording (read model and pick storey; identify floor boundary; identify doors in walls; identify rooms and corridor-like regions; create centre nodes and centrelines; connect doors and lifts; output 2D/3D map). Display-mesh, inventory and PNG nodes removed.
@@ -49,22 +65,22 @@
 - Validation: 42 passed, 2 skipped. The test checks there are no external `<script src>` tags. The existing `output/floor_plan_3d.html` was patched in place by swapping its CDN tag for the same plotly.js 4.1.1 bundle, and rendered with all non-file requests blocked (0 requests).
 
 ### Phase 4 revision — World storey Z; slab union in footprint (2026-10-21)
-- Real-model test: `MK18N438…LOD3.ifc`, `BLK3_Storey 1`. Of 184 columns, 91 span walking height and 83 are freestanding. There are 34 FLOOR slabs, and no doors or spaces.
+- Real-model test on an open validation storey: of 184 columns, 91 span walking height and 83 are freestanding. There are 34 FLOOR slabs, and no doors or spaces.
 - **Storey datum bug (fixed):**
-  - `IfcBuildingStorey.Elevation` is relative to the building, and this model places its `IfcBuilding` at z = 5.5 m. BLK3_Storey 1 has Elevation 20.5 m, but its world placement is z = 26.0 m.
+  - `IfcBuildingStorey.Elevation` is relative to the building, and this model places its `IfcBuilding` at z = 5.5 m. The validation storey has Elevation 20.5 m, but its world placement is z = 26.0 m.
   - Meshes are in world coordinates, so the walking height of 21.5 m missed every element: all walls, columns and openings were `covers_walking_height=False`.
   - New `StoreyInfo.world_z_m` uses placement Z, falling back to Elevation. It is now used for walking height, the placement-Z window and the 3D floor/clip.
 - **Footprint = wall envelope ∪ FLOOR/BASESLAB slabs (user decision):**
   - With the correct datum, the wall envelope covers only 94 m² in 117 parts; this is an open level. The FLOOR slabs cover 1,479 m².
   - `footprint_source = wall_envelope_and_floor_slabs`. The summary `footprint_parts_m2` reports the envelope, slab, slabs-only and envelope-only areas.
-  - Trade-off: slab overhangs and balconies are included. On MK23A091 `5TH STOREY` the footprint grows 1,713 → 1,752 m² (+38.5 m² from slabs only), and all 33 doors stay in one network component.
+  - Trade-off: slab overhangs and balconies are included. On another validation storey the footprint grows 1,713 → 1,752 m² (+38.5 m² from slabs only), and all 33 doors stay in one network component.
   - Slabs are not filtered by height. Some storey-contained slabs sit at other elevations.
 - **Centreline around columns (tried, then reverted at the user's request):**
-  - pygeoops' medial axis loops around every hole. On BLK3 there are 44 loops, 35 of them around freestanding columns (0.3–1.4 m² each).
+  - pygeoops' medial axis loops around every hole. On the open validation storey there are 44 loops, 35 of them around freestanding columns (0.3–1.4 m² each).
   - A variant filled holes ≤ 2 m² and detoured the line around them (44 → 2 loops, 862 → 649 m). The user prefers loops around columns, because walking either side is a valid route, so the variant was removed. The centreline is unchanged from Phase 5.
-- **Validation:** 42 passed, 2 skipped (the reverted detour tests were removed). BLK3 runs end to end including 3D (exit 0). The Level 1 sample (absent) was **not** re-run, and the committed outputs were not regenerated.
+- **Validation:** 42 passed, 2 skipped (the reverted detour tests were removed). The open validation storey runs end to end including 3D (exit 0). The Level 1 sample (absent) was **not** re-run, and the committed outputs were not regenerated.
 ### Phase 4 revision — Columns close the wall envelope (2026-10-21)
-- Real-model finding (`MK23A091…LOD3.ifc`, `5TH STOREY`): facade walls stop at structural columns, so the wall + curtain-wall envelope was open around units 05-05…05-10. Footprint 842 m² in 5 parts; 870 of 1,699 m² of `IfcSpace` area lay outside it, so those units had no regions, nodes or centrelines.
+- Real-model finding on a validation storey: facade walls stop at structural columns, so the wall + curtain-wall envelope was open around several units. Footprint 842 m² in 5 parts; 870 of 1,699 m² of `IfcSpace` area lay outside it, so those units had no regions, nodes or centrelines.
 - `build_floor_plan()` now adds `IfcColumn` footprints spanning walking height (`config.ENVELOPE_OBSTACLE_ENTITIES`) to the envelope. Columns are still subtracted as obstacles, so walkable geometry inside the envelope is unchanged. The summary reports `envelope_elements`.
 - `5TH STOREY` result: footprint 1,713 m² in 1 part; `IfcSpace` area outside footprint 0 m²; walkable 1,625 m²; 26 rooms / 7 corridors; 33 doors open, 30 connected on both sides; one network component holds all 33 doors (previously 6 door-bearing components, 1 blocked door).
 - Windows were not added to the envelope. 136 of 148 windows on that storey fill wall openings, and walls are meshed solid, so they would add nothing. Tested: adding windows changed the footprint by 0 m².

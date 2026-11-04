@@ -72,6 +72,63 @@ def split_regions(walkable, door_cuts: gpd.GeoDataFrame, cfg) -> tuple[list[Poly
     return list(parts), log
 
 
+def _edges(geom) -> list[LineString]:
+    """Line network split at every junction into junction-to-junction/leaf edges (coordinates rounded to snap ends)."""
+    merged = shapely.line_merge(shapely.node(shapely.union_all(geom)))
+    return [LineString([(round(x, 6), round(y, 6)) for x, y in g.coords])
+            for g in shapely.get_parts(merged) if isinstance(g, LineString) and g.length > 0]
+
+
+def _merge(edges: list[LineString]):
+    return shapely.line_merge(MultiLineString(edges)) if edges else None
+
+
+def open_polygon(poly: Polygon, min_clear_width: float):
+    """Morphological opening: removes every part of the region narrower than `min_clear_width` (gaps and teeth)."""
+    r = min_clear_width / 2
+    return poly.buffer(-r, join_style="mitre").buffer(r, join_style="mitre")
+
+
+def collapse_obstacle_loops(geom, poly: Polygon, max_loop_m2: float):
+    """Medial axes loop around every obstacle (column, post). Loops enclosing less than `max_loop_m2` in total are
+    duplicate paths: drop the side closest to the corridor boundary, leaving one path past the obstacle."""
+    edges = _edges(geom)
+    boundary = poly.boundary
+    while edges:
+        mids = [e.interpolate(0.5, normalized=True) for e in edges]
+        drop, used = set(), set()
+        for face in shapely.get_parts(shapely.polygonize(edges)):
+            if face.area >= max_loop_m2:
+                continue
+            sides = [i for i, m in enumerate(mids) if face.exterior.distance(m) < CONNECT_TOL_M]
+            if sides and not used.intersection(sides):
+                used.update(sides)
+                drop.add(min(sides, key=lambda i: boundary.distance(mids[i])))
+        if not drop:
+            break
+        edges = _edges([e for i, e in enumerate(edges) if i not in drop])
+    return _merge(edges)
+
+
+def drop_parallel_leaves(geom, offset_m: float, cover: float = 0.7):
+    """Remove leaf branches that run alongside another branch (>= `cover` of their length within `offset_m`), as
+    produced in open spaces by jagged boundaries. Shortest first, one at a time, until stable."""
+    edges = _edges(geom)
+    while True:
+        degree = Counter(pt for e in edges for pt in (e.coords[0], e.coords[-1]))
+        leaves = sorted((i for i, e in enumerate(edges) if 1 in (degree[e.coords[0]], degree[e.coords[-1]])),
+                        key=lambda i: edges[i].length)
+        drop = None
+        for i in leaves:
+            others = [e for j, e in enumerate(edges) if j != i]
+            if others and edges[i].intersection(shapely.union_all(others).buffer(offset_m)).length >= cover * edges[i].length:
+                drop = i
+                break
+        if drop is None:
+            return _merge(edges)
+        edges = _edges([e for j, e in enumerate(edges) if j != drop])
+
+
 def prune_corner_spurs(geom, poly: Polygon, factor: float, max_half_width: float = float("inf")):
     """Remove short leaf branches (medial-axis forks into corridor corners and ends).
 
@@ -103,15 +160,26 @@ def prune_corner_spurs(geom, poly: Polygon, factor: float, max_half_width: float
 
 
 def _corridor_centreline(poly: Polygon, cfg):
-    raw = pygeoops.centerline(
-        poly,
-        densify_distance=cfg.CORRIDOR_DENSIFY_M,
-        min_branch_length=cfg.CORRIDOR_MIN_BRANCH_M,
-        simplifytolerance=cfg.CORRIDOR_SIMPLIFY_M,
-    )
-    if raw is None or raw.is_empty:
-        return raw
-    return prune_corner_spurs(raw, poly, cfg.CORRIDOR_SPUR_HALF_WIDTH_FACTOR, cfg.CORRIDOR_SPUR_MAX_HALF_WIDTH_M)
+    """Centreline of the region's parts at least CORRIDOR_MIN_CLEAR_WIDTH_M wide, one path per corridor axis."""
+    opened = open_polygon(poly, cfg.CORRIDOR_MIN_CLEAR_WIDTH_M)
+    pieces = []
+    for part in shapely.get_parts(opened):
+        raw = pygeoops.centerline(
+            part,
+            densify_distance=cfg.CORRIDOR_DENSIFY_M,
+            min_branch_length=cfg.CORRIDOR_MIN_BRANCH_M,
+            simplifytolerance=cfg.CORRIDOR_SIMPLIFY_M,
+        )
+        if raw is not None and not raw.is_empty:
+            pieces.append(raw)
+    if not pieces:
+        return None
+    lines = collapse_obstacle_loops(pieces, poly, cfg.CORRIDOR_LOOP_MAX_AREA_M2)
+    if lines is not None and cfg.CORRIDOR_PARALLEL_OFFSET_M > 0:
+        lines = drop_parallel_leaves(lines, cfg.CORRIDOR_PARALLEL_OFFSET_M)
+    if lines is None:
+        return None
+    return prune_corner_spurs(lines, poly, cfg.CORRIDOR_SPUR_HALF_WIDTH_FACTOR, cfg.CORRIDOR_SPUR_MAX_HALF_WIDTH_M)
 
 
 def build_network(components: gpd.GeoDataFrame, door_cuts: gpd.GeoDataFrame, cfg) -> dict:
@@ -172,7 +240,10 @@ def build_network(components: gpd.GeoDataFrame, door_cuts: gpd.GeoDataFrame, cfg
         "corridor_parameters": {"densify_distance": cfg.CORRIDOR_DENSIFY_M, "min_branch_length": cfg.CORRIDOR_MIN_BRANCH_M,
                                 "simplifytolerance": cfg.CORRIDOR_SIMPLIFY_M,
                                 "spur_half_width_factor": cfg.CORRIDOR_SPUR_HALF_WIDTH_FACTOR,
-                                "spur_max_half_width": cfg.CORRIDOR_SPUR_MAX_HALF_WIDTH_M},
+                                "spur_max_half_width": cfg.CORRIDOR_SPUR_MAX_HALF_WIDTH_M,
+                                "min_clear_width": cfg.CORRIDOR_MIN_CLEAR_WIDTH_M,
+                                "loop_max_area_m2": cfg.CORRIDOR_LOOP_MAX_AREA_M2,
+                                "parallel_offset": cfg.CORRIDOR_PARALLEL_OFFSET_M},
         "runtime_s": round(time.time() - t0, 2),
         "region_split": split_log,
         "regions": dict(kinds),
@@ -289,6 +360,11 @@ def build_connectors(network: dict, door_points: gpd.GeoDataFrame, lift_frame: g
 
     lift_geom = dict(zip(lift_frame.get("global_id", []), lift_frame.geometry))
     tree = shapely.STRtree(regions.geometry.values) if len(regions) else None
+    lift_regions = set()
+    if tree is not None and len(lift_frame):
+        lift_union = shapely.union_all(list(lift_frame.geometry))
+        lift_regions = {k for k in tree.query(lift_union, predicate="intersects")
+                        if regions.geometry.iloc[k].intersection(lift_union).area >= 0.5 * regions.geometry.iloc[k].area}
     lift_rows = []
     for rec in lift_records:
         if not rec["is_access_point_candidate"]:
@@ -309,6 +385,8 @@ def build_connectors(network: dict, door_points: gpd.GeoDataFrame, lift_frame: g
             continue
         point = fp.centroid
         near = tree.query(fp.buffer(cfg.LIFT_ADJACENCY_TOL_M), predicate="intersects") if tree is not None else []
+        # A region mostly occupied by lift parts (the shaft) is not part of the main network: connect outward.
+        near = [k for k in near if k not in lift_regions]
         if len(near) == 0:
             lift_rows.append({**base, "connection_status": "no_adjacent_region", "region_id": None, "distance_m": None,
                               "geometry": point})

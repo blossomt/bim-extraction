@@ -19,6 +19,5 @@ IFC → indoor walking-network prototype. Requirements: [SPEC.md](SPEC.md). Phas
 - IFC attributes are in project units (feet here); IfcOpenShell geometry is in metres. Convert explicitly.
 - Verify installed library APIs (`inspect.signature`) before use; pygeoops is 0.6.0.
 - Only door-filled openings may make walls passable — never window openings. Walls are meshed solid; doorways are cut with door-opening footprints (no horizontal sections: window sills are below walking height).
-- Folium: local coordinates must be shown as clearly labelled synthetic coordinates.
 - Record assumptions, data-quality issues and failures in PROGRESS.md and diagnostics output.
 - No unrelated refactoring; keep code simple.
