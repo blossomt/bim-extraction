@@ -4,6 +4,7 @@ import shapely
 from shapely.geometry import LineString
 
 import config
+import heuristics
 import network_generation as ng
 
 
@@ -154,8 +155,8 @@ def test_lift_connects_outside_its_own_shaft_region():
 
 
 def test_long_corridor_snap_is_flagged(monkeypatch):
-    monkeypatch.setattr(config, "MAX_SNAP_DISTANCE_M", 0.1)
-    monkeypatch.setattr(config, "SNAP_WIDTH_MARGIN_M", -10.0)
+    monkeypatch.setattr(heuristics, "MAX_SNAP_DISTANCE_M", 0.1)
+    monkeypatch.setattr(heuristics, "SNAP_WIDTH_MARGIN_M", -10.0)
     walkable, door = _plan()
     net = ng.build_network(_components(walkable), _cuts(("D1", door)), config)
     conn = ng.build_connectors(net, _cuts(), _cuts(), [], config)

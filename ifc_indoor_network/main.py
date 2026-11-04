@@ -19,6 +19,7 @@ from pathlib import Path
 
 import config
 import geometry_processing
+import heuristics
 import ifc_reader
 import network_generation
 import visualisation
@@ -157,7 +158,7 @@ def write_3d_view(model, extracted: dict, network: dict, conn: dict, selected: i
     idx = storeys.index(selected)
     z_clip = storeys[idx + 1].world_z_m if idx + 1 < len(storeys) else None
     path_3d, fig_3d = visualisation.build_3d_view(
-        meshes, network, conn, selected.name, selected.world_z_m, config.PLOT3D_HIDDEN,
+        meshes, network, conn, selected.name, selected.world_z_m, heuristics.PLOT3D_HIDDEN,
         output_dir / "floor_plan_3d.html", z_clip_m=z_clip,
     )
     if not fig_3d.data:
@@ -178,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Loaded {args.ifc} in {time.time() - t0:.1f}s")
 
     inv, membership = ifc_reader.build_inventory(
-        model, config.INVENTORY_CATEGORIES, config.LIFT_LABEL_KEYWORDS, config.LABEL_SUMMARY_TOP_N
+        model, heuristics.INVENTORY_CATEGORIES, config.LIFT_LABEL_KEYWORDS, heuristics.LABEL_SUMMARY_TOP_N
     )
     inv["ifc_path"] = str(args.ifc)
     print_inventory(inv)

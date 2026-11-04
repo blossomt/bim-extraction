@@ -1,8 +1,15 @@
 # PROGRESS
 
-**Current phase:** Phases 1–7 and 9 complete; Phase 8 (consolidated diagnostics report) and Phase 10 (acceptance review) remain.
+**Current phase:** Phases 1–7, 9, 11 and 12 complete; Phase 8 (consolidated diagnostics report) and Phase 10 (acceptance review) remain.
 
 ## Completed
+
+### Phase 12 — Streamline config; hard-code tested heuristics (2026-11-05)
+- New [heuristics.py](ifc_indoor_network/heuristics.py) with 25 tuned constants, one-line comment each: corridor shaping (`CORRIDOR_*`), geometry tolerances (`GEOMETRY_*`, `MIN_COMPONENT_MEAN_WIDTH_M`, `DOORWAY_BLOCKED_FRACTION`, door tolerances, `CUT_CURTAIN_WALL_DOORS`), `ENVELOPE_OBSTACLE_ENTITIES`, connector limits (`MAX_SNAP_DISTANCE_M`, `SNAP_WIDTH_MARGIN_M`, `LIFT_ADJACENCY_TOL_M`) and reporting/Revit specifics (`PLACEMENT_Z_TOLERANCE_M`, `INVENTORY_CATEGORIES`, `LABEL_SUMMARY_TOP_N`, `LIFT_ROLE_PATTERNS`, `EXTRA_PSETS`, `PLOT3D_HIDDEN`, `PLOT3D_SKIP_PART_ENTITIES`). Values unchanged.
+- [config.py](ifc_indoor_network/config.py) now has 13 owner-facing settings (storey, output dir, obstacle classes, lift naming, walking height, walls-block rule, corridor clear width, envelope closing, minimum component area, room rectangularity/aspect, 3D categories), grouped with a "when to change" note. Every setting is referenced in code (grep check).
+- `ENVELOPE_OBSTACLE_ENTITIES` is fixed to curtain wall and column so editing `OBSTACLE_CATEGORIES` does not change the footprint envelope semantics.
+- Modules still receive `cfg` for owner settings and read constants via `import heuristics`; tests monkeypatch `heuristics` for the snap limits. 51 references repointed. `summary.json` still records the applied parameters.
+- Regression check on the same five cases: all metrics **identical** to the Phase 11 baseline. Tests: 59 passed. One 3D run completed.
 
 ### Phase 11 — Simplify pipeline logic (2026-11-05)
 - Pure refactor, no algorithm changes. `network_generation`: `build_network` → `_build_regions`, `_build_doors`, `_network_summary`; `build_connectors` → `_door_connectors`, `_lift_connectors`, `_connectivity_summary`; `prune_corner_spurs` reuses `_edges`/`_merge`. `geometry_processing`: `_element_footprint`, `_floor_footprint`, `_door_cuts`, `_blocked_doorways`, `_excluded_count` (replaces the convoluted `not_active` expression); unused `door_lines` frame and `Point` import removed (door axis kept for the width check). `ifc_reader`: one `_predefined` helper behind `_predefined_type` / `_predefined_value` (the `inventory.json` string format is unchanged) and one `_has_lift_label`. `main`: `run_storey_pipeline` and `write_3d_view` extracted. `visualisation`: direct `_connector_style` reference, `_network_traces` and `_scene_layout` split out of `build_3d_view`, return annotation fixed to `(Path, Figure)`.

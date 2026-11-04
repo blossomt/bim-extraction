@@ -1,109 +1,40 @@
-"""User-editable defaults. Storey and output directory have CLI overrides; --ifc is required."""
+"""Settings a building owner may change for a different IFC model. Tuned internals live in heuristics.py.
+
+--storey and --output-dir override the first two; --ifc is always required.
+"""
 
 from pathlib import Path
-import os
 
+# --- Run ---
 TARGET_STOREY = "Level 1"
 OUTPUT_DIR = Path(__file__).resolve().parent / "output"
 
-# Categories counted in the inventory. Subtypes are included (IfcWall counts IfcWallStandardCase).
-INVENTORY_CATEGORIES = [
-    "IfcWall",
-    "IfcWallStandardCase",
-    "IfcSlab",
-    "IfcSpace",
-    "IfcDoor",
-    "IfcStair",
-    "IfcStairFlight",
-    "IfcTransportElement",
-    "IfcOpeningElement",
-]
-
-# Name/ObjectType/type-name keywords used to *report* possible lift objects that are not
-# modelled as IfcTransportElement. These are label-based candidates, never confirmed lifts.
+# --- Model conventions: change if the model names or classifies things differently ---
+# Fixed obstacles subtracted from the walkable area in addition to walls.
+OBSTACLE_CATEGORIES = ["IfcCurtainWall", "IfcColumn"]
+# Lifts: only elements whose Name matches LIFT_ACCESS_NAME_PATTERN become lift access points. Name/ObjectType/type-name
+# keywords only *report* other possible lift objects (label-based candidates, never confirmed lifts).
+LIFT_ACCESS_NAME_PATTERN = r"^Elevator_LandingDoor"
 LIFT_LABEL_KEYWORDS = ["elevator", "lift"]
 
-# Number of distinct labels (ObjectType, type names) listed per category in the inventory.
-LABEL_SUMMARY_TOP_N = 15
-
-# Fixed obstacles subtracted from the walkable area in addition to walls (reviewed decision).
-OBSTACLE_CATEGORIES = ["IfcCurtainWall", "IfcColumn"]
-
-# Label-only lift parts. Only names matching LIFT_ACCESS_NAME_PATTERN may become lift access points.
-LIFT_ACCESS_NAME_PATTERN = r"^Elevator_LandingDoor"
-LIFT_ROLE_PATTERNS = {"landing_door": r"landing_?door", "car_door": r"car_?door", "cabin": r"cabin"}
-
-# Standard Pset_* sets are always kept; these vendor (Revit) sets are kept in addition, per category.
-EXTRA_PSETS = {
-    "IfcWall": ["Constraints"],
-    "IfcDoor": ["Dimensions", "Constraints"],
-    "IfcSpace": ["Dimensions", "Identity Data"],
-    "IfcStair": ["Constraints"],
-}
-
-# Elements whose placement Z lies outside [elevation - tol, next storey elevation - tol) are flagged (report only).
-PLACEMENT_Z_TOLERANCE_M = 0.5
-
-# Height above the storey elevation used to decide whether walls/openings matter for walking.
+# --- What counts as walkable ---
+# Height above the storey elevation used to decide whether columns, curtain walls and openings matter for walking.
 WALKING_HEIGHT_M = 1.0
-# Conservative wall rule: every wall on the storey blocks walking (and its door-filled openings cut it), whatever its
-# height range. Split-level storeys (ramps between areas at different elevations) have walls that do not span the
-# single walking height yet separate walking levels. Cost: bulkheads above / downstands below the floor also block.
+# True: every wall on the storey blocks walking whatever its height range (safe for split-level storeys, but bulkheads
+# above / downstands below the floor also block). False: only walls spanning WALKING_HEIGHT_M block.
 WALLS_BLOCK_AT_ANY_HEIGHT = True
-# Snapping grid for 2D unions (metres). Small enough not to close doorways.
-GEOMETRY_GRID_SIZE_M = 0.001
-GEOMETRY_THREADS = os.cpu_count() or 1
-# Door footprint axis minus IFC OverallWidth: deviations from the median offset above this are reported.
-DOOR_WIDTH_CHECK_TOLERANCE_M = 0.15
+# Corridor centrelines only run where the corridor is at least this wide (e.g. accessibility clear width); narrower
+# corridors get no centreline (status "empty").
+CORRIDOR_MIN_CLEAR_WIDTH_M = 1.0
 
-# Floor footprint = filled outer rings of wall + curtain-wall + column footprints spanning walking height
-# (reviewed decision: rooms are unreliable; columns added because facade walls often stop at columns).
-ENVELOPE_OBSTACLE_ENTITIES = ["IfcCurtainWall", "IfcColumn"]
-# Morphological closing used ONLY to seal sub-centimetre envelope gaps; 0.02 m is the smallest value sealing Level 1.
+# --- Model data quality ---
+# Closes gaps between wall footprints when deriving the floor footprint; 0.02 m is the smallest value sealing the sample.
 ENVELOPE_CLOSING_M = 0.02
-# Walkable components smaller than this are removed as slivers (logged).
-MIN_COMPONENT_AREA_M2 = 0.5
-# Walkable components whose mean width (2 * area / perimeter) is below this are removed (wall-gap strips; logged).
-MIN_COMPONENT_MEAN_WIDTH_M = 0.3
-# Doors aggregated in a curtain wall (no IfcOpeningElement) cut their own footprint from that curtain wall.
-CUT_CURTAIN_WALL_DOORS = True
-# Doorway reported as still blocked if more than this fraction of its cut area remains covered by obstacles.
-DOORWAY_BLOCKED_FRACTION = 0.5
+MIN_COMPONENT_AREA_M2 = 0.5  # walkable components smaller than this are removed as slivers (logged)
 
-# Network: the walkable polygon is split at door cuts into regions. Compact near-rectangular regions are
-# "rooms" (one centre node + straight spokes to their doors); all other regions are "corridors" (pygeoops centreline).
+# --- Room vs corridor: compact near-rectangular regions are rooms (one centre node), the rest are corridors ---
 ROOM_MIN_RECTANGULARITY = 0.85  # region area / minimum rotated rectangle area
 ROOM_MAX_ASPECT = 3.0  # long / short side of the minimum rotated rectangle
-# pygeoops.centerline parameters for corridor regions (metres). Doorways are not part of corridor regions,
-# so branches can be pruned harder than before without disconnecting doors.
-CORRIDOR_DENSIFY_M = 0.25
-CORRIDOR_MIN_BRANCH_M = 2.0
-CORRIDOR_SIMPLIFY_M = 0.1
-# Leaf branches shorter than this x the local half-width (junction to corridor boundary) are corner/end forks and are
-# pruned, leaving one centreline along the corridor axis. Raise to prune more, 0 to disable.
-CORRIDOR_SPUR_HALF_WIDTH_FACTOR = 1.5
-# Only junctions in corridors up to this half-width are pruned; wide halls keep their branches to reach side doors.
-CORRIDOR_SPUR_MAX_HALF_WIDTH_M = 4.0
-# Centrelines only run where the corridor is at least this wide: gaps narrower than this (e.g. beside columns) are not
-# walked through, and corridors narrower than this everywhere get no centreline (status "empty").
-CORRIDOR_MIN_CLEAR_WIDTH_M = 1.0
-# Centreline loops enclosing less than this area (tight loops around columns/posts) collapse to one path.
-CORRIDOR_LOOP_MAX_AREA_M2 = 20.0
-# Leaf branches running alongside another branch within this distance (fans in open spaces) are removed; 0 disables.
-CORRIDOR_PARALLEL_OFFSET_M = 1.5
-# A region is adjacent to a door if it lies within this distance of the door cut.
-DOOR_ADJACENCY_TOL_M = 0.05
 
-# Connectors: doorway/lift access point -> nearest corridor centreline point. Longer connectors are flagged, not accepted.
-# Limit per corridor region = max(MAX_SNAP_DISTANCE_M, region's max inscribed radius + SNAP_WIDTH_MARGIN_M):
-# in wide lobbies the centreline is legitimately far from the walls.
-MAX_SNAP_DISTANCE_M = 3.0
-SNAP_WIDTH_MARGIN_M = 1.0
-# Lift landing-door footprints are linked to walkable regions within this distance.
-LIFT_ADJACENCY_TOL_M = 0.5
-
-# Optional Plotly 3D view: Phase 2 categories meshed (openings subtracted). Spaces start hidden in the legend.
+# --- Optional Plotly 3D view: categories meshed (openings subtracted) ---
 PLOT3D_CATEGORIES = ["walls", "obstacles", "doors", "stairs", "lifts", "spaces"]
-PLOT3D_HIDDEN = ["spaces"]
-# Decomposition parts not drawn in 3D (stair railings were ~60% of all vertices on Level 1).
-PLOT3D_SKIP_PART_ENTITIES = ["IfcRailing"]

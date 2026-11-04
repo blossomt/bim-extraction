@@ -6,6 +6,7 @@ import ifcopenshell.guid
 import pytest
 
 import config
+import heuristics
 import ifc_reader
 from ifc_reader import StoreyInfo, StoreySelectionError, select_storey
 
@@ -169,7 +170,7 @@ def test_count_entities_reports_schema_gaps():
 
 def test_sample_model_inventory(sample_ifc_path):
     model = ifc_reader.open_model(sample_ifc_path)
-    inv, membership = ifc_reader.build_inventory(model, config.INVENTORY_CATEGORIES, config.LIFT_LABEL_KEYWORDS, 5)
+    inv, membership = ifc_reader.build_inventory(model, heuristics.INVENTORY_CATEGORIES, config.LIFT_LABEL_KEYWORDS, 5)
     assert inv["schema"] == "IFC2X3"
     assert inv["length_unit"]["name"] == "FOOT"
     assert [s["name"] for s in inv["storeys"]][:2] == ["Level 1", "Level 2"]

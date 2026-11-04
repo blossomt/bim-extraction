@@ -13,6 +13,7 @@ from shapely.geometry import LineString, MultiLineString, Point, Polygon
 from shapely.ops import nearest_points
 
 import geometry_processing as gp
+import heuristics
 
 CONNECT_TOL_M = 1e-6
 
@@ -63,7 +64,7 @@ def room_point(poly: Polygon) -> tuple[Point, str]:
 def split_regions(walkable, door_cuts: gpd.GeoDataFrame, cfg) -> tuple[list[Polygon], dict]:
     """Walkable polygon minus door cuts: rooms and corridors become separate regions joined only via doorways."""
     cuts = shapely.union_all(door_cuts.geometry.values) if len(door_cuts) else Polygon()
-    regions, log = gp.clean_polygons(walkable.difference(cuts), cfg.MIN_COMPONENT_AREA_M2, cfg.MIN_COMPONENT_MEAN_WIDTH_M)
+    regions, log = gp.clean_polygons(walkable.difference(cuts), cfg.MIN_COMPONENT_AREA_M2, heuristics.MIN_COMPONENT_MEAN_WIDTH_M)
     parts = sorted(shapely.get_parts(regions), key=lambda p: -p.area) if not regions.is_empty else []
     return list(parts), log
 
@@ -155,16 +156,16 @@ def prune_corner_spurs(geom, poly: Polygon, factor: float, max_half_width: float
 
 def _corridor_centreline(poly: Polygon, cfg):
     """Centreline of the region's parts at least CORRIDOR_MIN_CLEAR_WIDTH_M wide, one path per corridor axis."""
-    pieces = [pygeoops.centerline(part, densify_distance=cfg.CORRIDOR_DENSIFY_M, min_branch_length=cfg.CORRIDOR_MIN_BRANCH_M,
-                                  simplifytolerance=cfg.CORRIDOR_SIMPLIFY_M)
+    pieces = [pygeoops.centerline(part, densify_distance=heuristics.CORRIDOR_DENSIFY_M, min_branch_length=heuristics.CORRIDOR_MIN_BRANCH_M,
+                                  simplifytolerance=heuristics.CORRIDOR_SIMPLIFY_M)
               for part in shapely.get_parts(open_polygon(poly, cfg.CORRIDOR_MIN_CLEAR_WIDTH_M))]
     pieces = [p for p in pieces if p is not None and not p.is_empty]
-    lines = collapse_obstacle_loops(pieces, poly, cfg.CORRIDOR_LOOP_MAX_AREA_M2) if pieces else None
-    if lines is not None and cfg.CORRIDOR_PARALLEL_OFFSET_M > 0:
-        lines = drop_parallel_leaves(lines, cfg.CORRIDOR_PARALLEL_OFFSET_M)
+    lines = collapse_obstacle_loops(pieces, poly, heuristics.CORRIDOR_LOOP_MAX_AREA_M2) if pieces else None
+    if lines is not None and heuristics.CORRIDOR_PARALLEL_OFFSET_M > 0:
+        lines = drop_parallel_leaves(lines, heuristics.CORRIDOR_PARALLEL_OFFSET_M)
     if lines is None:
         return None
-    return prune_corner_spurs(lines, poly, cfg.CORRIDOR_SPUR_HALF_WIDTH_FACTOR, cfg.CORRIDOR_SPUR_MAX_HALF_WIDTH_M)
+    return prune_corner_spurs(lines, poly, heuristics.CORRIDOR_SPUR_HALF_WIDTH_FACTOR, heuristics.CORRIDOR_SPUR_MAX_HALF_WIDTH_M)
 
 
 def _build_regions(parts: list[Polygon], cfg) -> tuple[list[dict], list[dict], list[dict]]:
@@ -203,7 +204,7 @@ def _build_doors(door_cuts: gpd.GeoDataFrame, walkable, parts: list[Polygon], re
     names = door_cuts["door_name"] if "door_name" in door_cuts else [None] * len(door_cuts)
     for door_id, door_name, cut in zip(door_cuts.get("door_global_id", []), names, door_cuts.geometry):
         doorway = cut.intersection(walkable)
-        adjacent = sorted(int(j) for j in tree.query(cut.buffer(cfg.DOOR_ADJACENCY_TOL_M), predicate="intersects")) if parts else []
+        adjacent = sorted(int(j) for j in tree.query(cut.buffer(heuristics.DOOR_ADJACENCY_TOL_M), predicate="intersects")) if parts else []
         status = "open" if doorway.area > 0 else "blocked"
         door_rows.append({
             "door_global_id": door_id, "name": door_name, "status": status,
@@ -221,13 +222,13 @@ def _network_summary(region_rows, room_rows, centrelines, door_rows, split_log, 
     return {
         "pygeoops_version": pygeoops.__version__,
         "room_rule": {"min_rectangularity": cfg.ROOM_MIN_RECTANGULARITY, "max_aspect": cfg.ROOM_MAX_ASPECT},
-        "corridor_parameters": {"densify_distance": cfg.CORRIDOR_DENSIFY_M, "min_branch_length": cfg.CORRIDOR_MIN_BRANCH_M,
-                                "simplifytolerance": cfg.CORRIDOR_SIMPLIFY_M,
-                                "spur_half_width_factor": cfg.CORRIDOR_SPUR_HALF_WIDTH_FACTOR,
-                                "spur_max_half_width": cfg.CORRIDOR_SPUR_MAX_HALF_WIDTH_M,
+        "corridor_parameters": {"densify_distance": heuristics.CORRIDOR_DENSIFY_M, "min_branch_length": heuristics.CORRIDOR_MIN_BRANCH_M,
+                                "simplifytolerance": heuristics.CORRIDOR_SIMPLIFY_M,
+                                "spur_half_width_factor": heuristics.CORRIDOR_SPUR_HALF_WIDTH_FACTOR,
+                                "spur_max_half_width": heuristics.CORRIDOR_SPUR_MAX_HALF_WIDTH_M,
                                 "min_clear_width": cfg.CORRIDOR_MIN_CLEAR_WIDTH_M,
-                                "loop_max_area_m2": cfg.CORRIDOR_LOOP_MAX_AREA_M2,
-                                "parallel_offset": cfg.CORRIDOR_PARALLEL_OFFSET_M},
+                                "loop_max_area_m2": heuristics.CORRIDOR_LOOP_MAX_AREA_M2,
+                                "parallel_offset": heuristics.CORRIDOR_PARALLEL_OFFSET_M},
         "runtime_s": runtime_s,
         "region_split": split_log,
         "regions": dict(kinds),
@@ -305,7 +306,7 @@ def _connect(point: Point, region: dict, room_nodes: dict, centrelines: dict, wa
     # Room spokes are internal room edges; only snaps to a corridor centreline are limited by the snap distance.
     limit = None
     if kind == "corridor_snap":
-        limit = max(cfg.MAX_SNAP_DISTANCE_M, (region.get("max_half_width_m") or 0) + cfg.SNAP_WIDTH_MARGIN_M)
+        limit = max(heuristics.MAX_SNAP_DISTANCE_M, (region.get("max_half_width_m") or 0) + heuristics.SNAP_WIDTH_MARGIN_M)
     status = "too_long" if limit is not None and dist > limit else "ok"
     return {"region_id": rid, "kind": kind, "status": status, "distance_m": round(dist, 3),
             "snap_limit_m": round(limit, 3) if limit is not None else None,
@@ -365,7 +366,7 @@ def _lift_connectors(regions: gpd.GeoDataFrame, lift_frame: gpd.GeoDataFrame, li
         has_geometry = fp is not None and not fp.is_empty
         point = fp.centroid if has_geometry else None
         # A region mostly occupied by lift parts (the shaft) is not part of the main network: connect outward.
-        near = [k for k in tree.query(fp.buffer(cfg.LIFT_ADJACENCY_TOL_M), predicate="intersects")
+        near = [k for k in tree.query(fp.buffer(heuristics.LIFT_ADJACENCY_TOL_M), predicate="intersects")
                 if k not in lift_regions] if has_geometry and tree is not None else []
         status = ("excluded_placement_inconsistent" if rec["placement_z_outside_storey"]  # report, never connect
                   else "no_geometry" if not has_geometry else "no_adjacent_region" if not near else None)
@@ -391,10 +392,10 @@ def _connectivity_summary(network: dict, connector_rows, door_rows, lift_rows, c
     corridor_ids_with_connectors = {r["region_id"] for r in connector_rows if r["kind"] == "corridor_snap" and r["status"] == "ok"}
     snaps = [r for r in connector_rows if r["kind"] == "corridor_snap" and r["distance_m"] is not None]
     return {
-        "max_snap_distance_m": cfg.MAX_SNAP_DISTANCE_M,
-        "snap_width_margin_m": cfg.SNAP_WIDTH_MARGIN_M,
+        "max_snap_distance_m": heuristics.MAX_SNAP_DISTANCE_M,
+        "snap_width_margin_m": heuristics.SNAP_WIDTH_MARGIN_M,
         "connectors_over_base_limit_accepted": sum(
-            1 for r in snaps if r["status"] == "ok" and r["distance_m"] > cfg.MAX_SNAP_DISTANCE_M),
+            1 for r in snaps if r["status"] == "ok" and r["distance_m"] > heuristics.MAX_SNAP_DISTANCE_M),
         "doors_by_connection_status": dict(Counter(r["connection_status"] for r in door_rows)),
         "connectors_by_kind_status": dict(Counter(f"{r['kind']}:{r['status']}" for r in connector_rows)),
         "corridor_snap_distance_m": {

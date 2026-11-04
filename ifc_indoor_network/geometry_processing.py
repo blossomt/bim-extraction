@@ -14,6 +14,7 @@ import ifcopenshell
 import ifcopenshell.geom
 import numpy as np
 import shapely
+import heuristics
 from shapely.geometry import LineString, MultiPolygon, Polygon
 
 # Categories from Phase 2 records that get a 2D footprint.
@@ -120,8 +121,8 @@ def _element_footprint(entity, own, part_meshes: list, walking_z: float, cfg) ->
     if not sources:
         return Polygon(), None, None, "no_representation" if getattr(entity, "Representation", None) is None else "no_geometry_output", 0
     footprint = polygonal_part(shapely.union_all(
-        [mesh_footprint(v, f, cfg.GEOMETRY_GRID_SIZE_M) for v, f in own_meshes + walking_parts],
-        grid_size=cfg.GEOMETRY_GRID_SIZE_M,
+        [mesh_footprint(v, f, heuristics.GEOMETRY_GRID_SIZE_M) for v, f in own_meshes + walking_parts],
+        grid_size=heuristics.GEOMETRY_GRID_SIZE_M,
     ))
     z = np.concatenate([v[:, 2] for v, _ in sources])
     status = "ok" if own is not None else "ok_from_parts"
@@ -143,7 +144,7 @@ def extract_geometry(model: ifcopenshell.file, extracted: dict, storey_elevation
             if rec["entity"] == "IfcCurtainWall":  # Revit curtain-wall geometry lives in aggregated plates/members
                 parts_of[rec["global_id"]] = [p for rel in e.IsDecomposedBy or () for p in rel.RelatedObjects]
     to_mesh = list(entities.values()) + [p for parts in parts_of.values() for p in parts]
-    meshes = iterate_meshes(model, to_mesh, cfg.GEOMETRY_THREADS)
+    meshes = iterate_meshes(model, to_mesh, heuristics.GEOMETRY_THREADS)
 
     frames, status_counts, repairs = {}, {}, []
     door_points, width_checks = [], []
@@ -203,7 +204,7 @@ def extract_geometry(model: ifcopenshell.file, extracted: dict, storey_elevation
             "offset_counts_m": dict(Counter(round(float(d), 2) for d in diffs).most_common()),
             "outliers": [
                 {"global_id": gid, "diff_m": round(float(d), 3)}
-                for gid, d in width_checks if abs(d - median) > cfg.DOOR_WIDTH_CHECK_TOLERANCE_M
+                for gid, d in width_checks if abs(d - median) > heuristics.DOOR_WIDTH_CHECK_TOLERANCE_M
             ],
         },
         "bounds_xy_m": list(bounds) if bounds else None,
@@ -218,9 +219,9 @@ def collect_display_meshes(model: ifcopenshell.file, extracted: dict, categories
         for rec in extracted["elements"].get(category, []):
             items.append((category, rec, model.by_guid(rec["global_id"])))
     parts_of = {rec["global_id"]: [p for rel in e.IsDecomposedBy or () for p in rel.RelatedObjects
-                                   if p.is_a() not in cfg.PLOT3D_SKIP_PART_ENTITIES] for _, rec, e in items}
+                                   if p.is_a() not in heuristics.PLOT3D_SKIP_PART_ENTITIES] for _, rec, e in items}
     to_mesh = [e for _, _, e in items] + [p for parts in parts_of.values() for p in parts]
-    meshes = iterate_meshes(model, to_mesh, cfg.GEOMETRY_THREADS, subtract_openings=True)
+    meshes = iterate_meshes(model, to_mesh, heuristics.GEOMETRY_THREADS, subtract_openings=True)
 
     out: dict[str, list] = {}
     drawn: set[str] = set()
@@ -288,7 +289,7 @@ def _polygon_stats(geom) -> dict:
 
 def _floor_footprint(walls, envelope_obstacles, frames: dict, extracted: dict, cfg) -> dict:
     """Wall/curtain-wall/column envelope (gaps closed, outer rings filled) unioned with floor slabs."""
-    grid = cfg.GEOMETRY_GRID_SIZE_M
+    grid = heuristics.GEOMETRY_GRID_SIZE_M
     # Walls plus curtain walls and columns spanning walking height (facade walls often stop at columns).
     envelope = shapely.union_all(list(walls.geometry) + list(envelope_obstacles.geometry), grid_size=grid)
     c = cfg.ENVELOPE_CLOSING_M
@@ -327,7 +328,7 @@ def _door_cuts(frames: dict, extracted: dict, any_height: bool, cfg) -> tuple[li
                 cut, host, kind = opening_geom[op["global_id"]], door["host_element"]["global_id"], "door_filled_opening"
             else:
                 uncut.append({"global_id": gid, "reason": "opening has no geometry spanning walking height"})
-        elif (cfg.CUT_CURTAIN_WALL_DOORS and door["aggregated_in"] and door["aggregated_in"]["entity"] == "IfcCurtainWall"
+        elif (heuristics.CUT_CURTAIN_WALL_DOORS and door["aggregated_in"] and door["aggregated_in"]["entity"] == "IfcCurtainWall"
               and gid in door_geom and not door_geom[gid].is_empty):
             cut, host, kind = door_geom[gid], door["aggregated_in"]["global_id"], "door_in_curtain_wall"
         else:
@@ -347,7 +348,7 @@ def _blocked_doorways(cut_rows: list[dict], footprint, aware_obstacles, obstacle
             blocked.append({"door_global_id": row["door_global_id"], "reason": "cut outside footprint"})
             continue
         frac = inside.intersection(aware_obstacles).area / inside.area
-        if frac > cfg.DOORWAY_BLOCKED_FRACTION:
+        if frac > heuristics.DOORWAY_BLOCKED_FRACTION:
             blockers = [gid for gid, g in obstacle_rows if gid != row["host_global_id"] and g.intersection(inside).area > 1e-4]
             blocked.append({"door_global_id": row["door_global_id"], "covered_fraction": round(frac, 3), "blocking_elements": blockers})
     return blocked
@@ -360,11 +361,11 @@ def _excluded_count(gdf: gpd.GeoDataFrame, any_height: bool) -> int:
 
 def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
     """Footprint = wall envelope ∪ floor slabs; subtract obstacles with host-specific door cuts."""
-    grid = cfg.GEOMETRY_GRID_SIZE_M
+    grid = heuristics.GEOMETRY_GRID_SIZE_M
     any_height = cfg.WALLS_BLOCK_AT_ANY_HEIGHT
     walls = _active(frames["walls"], any_height)
     obstacles = _active(frames["obstacles"])
-    envelope_obstacles = obstacles[obstacles["entity"].isin(cfg.ENVELOPE_OBSTACLE_ENTITIES)] if len(obstacles) else obstacles
+    envelope_obstacles = obstacles[obstacles["entity"].isin(heuristics.ENVELOPE_OBSTACLE_ENTITIES)] if len(obstacles) else obstacles
 
     fp = _floor_footprint(walls, envelope_obstacles, frames, extracted, cfg)
     footprint, wall_fill, slab_fill = fp["footprint"], fp["wall_fill"], fp["slab_fill"]
@@ -378,7 +379,7 @@ def build_floor_plan(frames: dict, extracted: dict, cfg) -> dict:
     aware_obstacles = shapely.union_all(aware_parts, grid_size=grid)
 
     raw = footprint.difference(aware_obstacles, grid_size=grid) if not footprint.is_empty else Polygon()
-    walkable, log = clean_polygons(raw, cfg.MIN_COMPONENT_AREA_M2, cfg.MIN_COMPONENT_MEAN_WIDTH_M)
+    walkable, log = clean_polygons(raw, cfg.MIN_COMPONENT_AREA_M2, heuristics.MIN_COMPONENT_MEAN_WIDTH_M)
     blocked = _blocked_doorways(cut_rows, footprint, aware_obstacles, obstacle_rows, cfg)
 
     spaces = frames["spaces"]

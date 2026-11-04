@@ -15,6 +15,7 @@ import ifcopenshell
 import ifcopenshell.util.element as ue
 import ifcopenshell.util.placement as up
 import ifcopenshell.util.unit as uu
+import heuristics
 
 MAX_RELATIONSHIP_DEPTH = 10
 
@@ -510,7 +511,7 @@ def extract_storey_elements(
         return [e for e in found if e.GlobalId in on_storey]
 
     def base(e, category):
-        return _base_record(e, membership[e.GlobalId], scale, cfg.EXTRA_PSETS.get(category, []))
+        return _base_record(e, membership[e.GlobalId], scale, heuristics.EXTRA_PSETS.get(category, []))
 
     cats: dict[str, list[dict]] = {
         "walls": [_wall_record(w, base(w, "IfcWall")) for w in elements("IfcWall")],
@@ -532,14 +533,14 @@ def extract_storey_elements(
         if _has_lift_label(e, cfg.LIFT_LABEL_KEYWORDS):
             lift_elements.setdefault(e.GlobalId, e)
     cats["lifts"] = [
-        _lift_record(e, base(e, "lift"), cfg.LIFT_ROLE_PATTERNS, cfg.LIFT_ACCESS_NAME_PATTERN)
+        _lift_record(e, base(e, "lift"), heuristics.LIFT_ROLE_PATTERNS, cfg.LIFT_ACCESS_NAME_PATTERN)
         for e in lift_elements.values()
     ]
 
     idx = storeys.index(storey)
     next_storey = storeys[idx + 1] if idx + 1 < len(storeys) else None
-    z_min = storey.world_z_m - cfg.PLACEMENT_Z_TOLERANCE_M
-    z_max = next_storey.world_z_m - cfg.PLACEMENT_Z_TOLERANCE_M if next_storey else None
+    z_min = storey.world_z_m - heuristics.PLACEMENT_Z_TOLERANCE_M
+    z_max = next_storey.world_z_m - heuristics.PLACEMENT_Z_TOLERANCE_M if next_storey else None
     placement_flags = {name: _flag_placement(recs, z_min, z_max) for name, recs in cats.items()}
 
     doors, walls, lifts = cats["doors"], cats["walls"], cats["lifts"]
